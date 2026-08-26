@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConnectAbroad - Register</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+        .auth-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2rem;
+            max-width: 460px;
+            width: 100%;
+            box-shadow: var(--shadow-md);
+        }
+        .auth-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .user-type-option {
+            flex: 1;
+            padding: 0.85rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-align: center;
+            background-color: var(--bg-subtle);
+            transition: all 0.2s;
+        }
+        .user-type-option input {
+            display: none;
+        }
+        .user-type-option.selected {
+            border-color: var(--primary);
+            background-color: var(--primary-light);
+            color: var(--primary);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="nav-brand" style="justify-content: center; margin-bottom: 0.5rem;" onclick="window.location.href='/login.html'">
+                <div class="brand-icon">CA</div>
+                <div class="brand-name">Connect<span>Abroad</span></div>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Join our global community platform</p>
+        </div>
+
+        <div id="alertBox" style="display: none; padding: 0.8rem; border-radius: var(--radius-md); font-size: 0.85rem; margin-bottom: 1.25rem;"></div>
+
+        <form id="registerForm" style="display: flex; flex-direction: column; gap: 1.15rem;">
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;" for="name">Full Name</label>
+                <input type="text" id="name" class="search-input" style="padding-left: 1rem;" placeholder="Rahul Kumar" required>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;" for="email">Email Address</label>
+                <input type="email" id="email" class="search-input" style="padding-left: 1rem;" placeholder="rahul@example.com" required>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;" for="password">Password</label>
+                <input type="password" id="password" class="search-input" style="padding-left: 1rem;" placeholder="At least 6 characters" minlength="6" required>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">Select Your Status</label>
+                <div style="display: flex; gap: 0.75rem;">
+                    <label class="user-type-option selected" id="lblAbroad">
+                        <input type="radio" name="userType" value="ABROAD" checked onchange="toggleTypeUI('ABROAD')">
+                        <div>🟢 Already Abroad</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-top: 0.2rem;">Living & Working</div>
+                    </label>
+                    <label class="user-type-option" id="lblAspiring">
+                        <input type="radio" name="userType" value="ASPIRING" onchange="toggleTypeUI('ASPIRING')">
+                        <div>✈️ Planning Move</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-top: 0.2rem;">Aspiring Overseas</div>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn-primary" style="padding: 0.75rem; font-size: 0.95rem; margin-top: 0.5rem;">Create Account</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1.5rem; font-size: 0.875rem; color: var(--text-muted);">
+            Already have an account? <a href="/login.html" style="font-weight: 600;">Sign in here</a>
+        </div>
+    </div>
+
+    <script>
+        function toggleTypeUI(type) {
+            document.getElementById('lblAbroad').classList.toggle('selected', type === 'ABROAD');
+            document.getElementById('lblAspiring').classList.toggle('selected', type === 'ASPIRING');
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const userType = document.querySelector('input[name="userType"]:checked').value;
+            const alertBox = document.getElementById('alertBox');
+            const submitBtn = document.getElementById('submitBtn');
+
+            alertBox.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Creating Account...';
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password, userType })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alertBox.style.backgroundColor = 'var(--success-bg)';
+                    alertBox.style.color = 'var(--success-text)';
+                    alertBox.style.border = '1px solid var(--success-border)';
+                    alertBox.innerText = 'Registration successful! Redirecting to login...';
+                    alertBox.style.display = 'block';
+                    setTimeout(() => {
+                        window.location.href = '/login.html?registered=true';
+                    }, 1200);
+                } else {
+                    let errorMsg = data.message || 'Registration failed';
+                    if (data.validationErrors) {
+                        errorMsg = Object.values(data.validationErrors).join(', ');
+                    }
+                    alertBox.style.backgroundColor = 'var(--danger-bg)';
+                    alertBox.style.color = 'var(--danger-text)';
+                    alertBox.style.border = '1px solid #fca5a5';
+                    alertBox.innerText = errorMsg;
+                    alertBox.style.display = 'block';
+                }
+            } catch (err) {
+                alertBox.style.backgroundColor = 'var(--danger-bg)';
+                alertBox.style.color = 'var(--danger-text)';
+                alertBox.innerText = 'Server error. Could not connect to API.';
+                alertBox.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Create Account';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConnectAbroad - Sign In</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+        .auth-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem 2rem;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: var(--shadow-md);
+        }
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="nav-brand" style="justify-content: center; margin-bottom: 0.5rem;" onclick="window.location.href='/login.html'">
+                <div class="brand-icon">CA</div>
+                <div class="brand-name">Connect<span>Abroad</span></div>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Welcome back! Sign in to your community account</p>
+        </div>
+
+        <div id="alertBox" style="display: none; padding: 0.8rem; border-radius: var(--radius-md); font-size: 0.85rem; margin-bottom: 1.25rem;"></div>
+
+        <form id="loginForm" style="display: flex; flex-direction: column; gap: 1.25rem;">
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;" for="email">Email Address</label>
+                <input type="email" id="email" class="search-input" style="padding-left: 1rem;" placeholder="rahul@example.com" required>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;" for="password">Password</label>
+                <input type="password" id="password" class="search-input" style="padding-left: 1rem;" placeholder="Enter your password" required>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn-primary" style="padding: 0.75rem; font-size: 0.95rem; margin-top: 0.5rem;">Sign In</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1.5rem; font-size: 0.875rem; color: var(--text-muted);">
+            Don't have an account? <a href="/register.html" style="font-weight: 600;">Register here</a>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('registered') === 'true') {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.style.backgroundColor = 'var(--success-bg)';
+            alertBox.style.color = 'var(--success-text)';
+            alertBox.style.border = '1px solid var(--success-border)';
+            alertBox.innerText = 'Registration completed! Please sign in with your credentials.';
+            alertBox.style.display = 'block';
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const alertBox = document.getElementById('alertBox');
+            const submitBtn = document.getElementById('submitBtn');
+
+            alertBox.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Signing In...';
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('jwtToken', data.token);
+                    localStorage.setItem('user', JSON.stringify({
+                        userId: data.userId,
+                        name: data.name,
+                        email: data.email,
+                        role: data.role,
+                        userType: data.userType
+                    }));
+
+                    alertBox.style.backgroundColor = 'var(--success-bg)';
+                    alertBox.style.color = 'var(--success-text)';
+                    alertBox.style.border = '1px solid var(--success-border)';
+                    alertBox.innerText = 'Login successful! Redirecting to feed...';
+                    alertBox.style.display = 'block';
+                    setTimeout(() => {
+                        window.location.href = '/dashboard.html';
+                    }, 800);
+                } else {
+                    alertBox.style.backgroundColor = 'var(--danger-bg)';
+                    alertBox.style.color = 'var(--danger-text)';
+                    alertBox.style.border = '1px solid #fca5a5';
+                    alertBox.innerText = data.message || 'Invalid email or password';
+                    alertBox.style.display = 'block';
+                }
+            } catch (err) {
+                alertBox.style.backgroundColor = 'var(--danger-bg)';
+                alertBox.style.color = 'var(--danger-text)';
+                alertBox.innerText = 'Server error. Could not connect to API.';
+                alertBox.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Sign In';
+            }
+        });
+    </script>
+</body>
+</html>

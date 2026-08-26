@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConnectAbroad - Global Community Platform</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar">
+        <div class="nav-brand" onclick="switchView('home')">
+            <div class="brand-icon">CA</div>
+            <div class="brand-name">Connect<span>Abroad</span></div>
+        </div>
+
+        <div class="nav-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearchInput" class="search-input" placeholder="Search people, colleges, cities, jobs...">
+        </div>
+
+        <div class="nav-actions">
+            <button class="nav-icon-btn" title="Notifications" onclick="switchView('connections')">
+                🔔 <span class="nav-badge" id="navNotificationBadge"></span>
+            </button>
+            <button class="nav-icon-btn" title="Messages" onclick="switchView('messages')">
+                💬 <span class="nav-badge"></span>
+            </button>
+
+            <div class="user-dropdown-container">
+                <div class="user-profile-trigger" id="userProfileTrigger">
+                    <div class="avatar-circle" id="navUserAvatar">CA</div>
+                    <span class="trigger-name" id="navUserName">User</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">▼</span>
+                </div>
+
+                <div class="dropdown-menu" id="userDropdown">
+                    <div class="dropdown-item" onclick="switchView('profile')">👤 My Profile</div>
+                    <div class="dropdown-item" onclick="switchView('connections')">🤝 My Connections</div>
+                    <div class="dropdown-item" onclick="openEditProfileModal()">✏️ Edit Profile</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="switchView('home')">🏠 Home Feed</div>
+                    <div class="dropdown-item" onclick="switchView('people')">👥 People Directory</div>
+                    <div class="dropdown-item" onclick="switchView('messages')">💬 Direct Messages</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" id="devPageAction">🛠️ Developer API Page</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" id="logoutAction" style="color: var(--danger-text);">🚪 Logout</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main 3-Column Layout -->
+    <div class="app-layout">
+        
+        <!-- Left Sidebar Navigation -->
+        <aside class="left-sidebar">
+            <div class="sidebar-card">
+                <ul class="nav-menu">
+                    <li class="nav-item active" data-view="home">
+                        <span class="nav-item-icon">🏠</span> Home Feed
+                    </li>
+                    <li class="nav-item" data-view="people">
+                        <span class="nav-item-icon">👥</span> People Directory
+                    </li>
+                    <li class="nav-item" data-view="connections">
+                        <span class="nav-item-icon">🤝</span> My Connections
+                    </li>
+                    <li class="nav-item" data-view="explore">
+                        <span class="nav-item-icon">🌎</span> Explore Communities
+                    </li>
+                    <li class="nav-item" data-view="jobs">
+                        <span class="nav-item-icon">💼</span> Part-Time Jobs
+                    </li>
+                    <li class="nav-item" data-view="housing">
+                        <span class="nav-item-icon">🏠</span> Housing & Rooms
+                    </li>
+                    <li class="nav-item" data-view="messages">
+                        <span class="nav-item-icon">💬</span> Direct Messages
+                    </li>
+                    <li class="nav-item" data-view="explore">
+                        <span class="nav-item-icon">🎓</span> College Communities
+                    </li>
+                    <li class="nav-item" data-view="explore">
+                        <span class="nav-item-icon">📅</span> Events & Meetups
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Mini User Profile -->
+            <div class="user-mini-profile">
+                <div class="avatar-circle" id="miniUserAvatar">CA</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="mini-name" id="miniUserName">User</div>
+                    <div class="mini-status" id="miniUserStatus">Connected</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Main Content Container -->
+        <main class="main-content">
+
+            <!-- View 1: Home Feed -->
+            <div class="page-view active" id="view-home">
+                
+                <!-- Welcome Banner -->
+                <div class="welcome-banner">
+                    <h1 class="welcome-title" id="welcomeTitle">Welcome back 👋</h1>
+                    <p class="welcome-subtitle">Discover people, opportunities, and communities connected to your abroad journey.</p>
+                </div>
+
+                <!-- Profile Completion Widget (Rendered dynamically if incomplete) -->
+                <div id="profileCompletionWidget"></div>
+
+                <!-- Post Composer -->
+                <div class="post-composer-card">
+                    <div class="composer-top">
+                        <div class="avatar-circle" style="background-color: var(--primary);">YOU</div>
+                        <input type="text" id="composerTextarea" class="composer-input" placeholder="What's happening in your journey? Share tips, questions, or opportunities...">
+                    </div>
+                    <div class="composer-actions">
+                        <div class="composer-options">
+                            <button class="composer-opt-btn">📷 Photo</button>
+                            <button class="composer-opt-btn">📍 Location</button>
+                            <button class="composer-opt-btn">💼 Job Lead</button>
+                        </div>
+                        <button class="btn-primary" id="submitPostBtn">Post Update</button>
+                    </div>
+                </div>
+
+                <!-- Category Filter Tabs -->
+                <div class="filter-tabs">
+                    <button class="tab-pill active" data-category="all">For You</button>
+                    <button class="tab-pill" data-category="job">Jobs</button>
+                    <button class="tab-pill" data-category="housing">Accommodation</button>
+                    <button class="tab-pill" data-category="question">Questions</button>
+                    <button class="tab-pill" data-category="experience">Experiences</button>
+                    <button class="tab-pill" data-category="alumni">Alumni</button>
+                    <button class="tab-pill" data-category="event">Events</button>
+                </div>
+
+                <!-- Dynamic Feed Posts Container -->
+                <div id="feedPostsContainer" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <!-- Feed posts rendered by app.js -->
+                </div>
+            </div>
+
+            <!-- View 2: Real People Discovery -->
+            <div class="page-view" id="view-people">
+                <div class="view-header">
+                    <h2 class="view-title">🔍 Discover People</h2>
+                    <p class="view-desc">Find alumni, professionals and people preparing for the same journey.</p>
+                </div>
+
+                <!-- Filter & Search Toolbar -->
+                <div class="filter-card-container">
+                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-main); margin-bottom: 0.5rem;">
+                        Search & Filter Community Profiles
+                    </div>
+                    <div class="filter-inputs-grid">
+                        <input type="text" id="searchKeywordInput" class="form-control" placeholder="🔍 Search name, college, city..." oninput="handleFilterChange()">
+                        <input type="text" id="filterCollegeInput" class="form-control" placeholder="🎓 Filter College" oninput="handleFilterChange()">
+                        <select id="filterCountrySelect" class="form-control" onchange="handleFilterChange()">
+                            <option value="">🌐 All Countries</option>
+                            <option value="Canada">Canada</option>
+                            <option value="United States">United States</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="Australia">Australia</option>
+                            <option value="Germany">Germany</option>
+                            <option value="Ireland">Ireland</option>
+                            <option value="New Zealand">New Zealand</option>
+                            <option value="UAE">UAE</option>
+                            <option value="India">India</option>
+                        </select>
+                        <input type="text" id="filterCityInput" class="form-control" placeholder="📍 Filter City" oninput="handleFilterChange()">
+                        <input type="text" id="filterProfessionInput" class="form-control" placeholder="💼 Filter Profession" oninput="handleFilterChange()">
+                        <select id="filterUserTypeSelect" class="form-control" onchange="handleFilterChange()">
+                            <option value="">👥 All Statuses</option>
+                            <option value="ABROAD">🟢 Already Abroad</option>
+                            <option value="ASPIRING">✈️ Planning to Move</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 0.75rem;">
+                        <button class="btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.85rem;" onclick="resetPeopleFilters()">
+                            ↺ Clear Filters
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Curated Section 1: People From Your College -->
+                <div id="sameCollegeSectionContainer" class="discovery-section-card" style="display: none;">
+                    <div class="discovery-section-header">
+                        <div class="discovery-section-title">🎓 People From Your College</div>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Real registered alumni & students</span>
+                    </div>
+                    <div class="directory-grid" id="sameCollegeGrid">
+                        <!-- Rendered by app.js -->
+                    </div>
+                </div>
+
+                <!-- Curated Section 2: Destination & Journey Network -->
+                <div id="destinationSectionContainer" class="discovery-section-card" style="display: none;">
+                    <div class="discovery-section-header">
+                        <div class="discovery-section-title" id="destinationSectionTitle">✈️ People In Your Destination</div>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Connect with people on similar journeys</span>
+                    </div>
+                    <div class="directory-grid" id="destinationGrid">
+                        <!-- Rendered by app.js -->
+                    </div>
+                </div>
+
+                <!-- Main People Directory Grid -->
+                <div style="font-weight: 700; font-size: 1rem; margin-bottom: 0.75rem; color: var(--text-main);">
+                    All Community Profiles
+                </div>
+                <div class="directory-grid" id="peopleDirectoryContainer">
+                    <!-- Rendered by app.js from GET /api/profiles -->
+                </div>
+
+                <!-- Pagination Bar -->
+                <div id="peoplePaginationContainer" class="pagination-controls">
+                    <!-- Rendered by app.js -->
+                </div>
+            </div>
+
+            <!-- View 3: Explore Page -->
+            <div class="page-view" id="view-explore">
+                <div class="view-header">
+                    <h2 class="view-title">Explore Abroad Communities</h2>
+                    <p class="view-desc">Discover active country hubs, city networks, and college alumni groups.</p>
+                </div>
+                <div class="directory-grid" id="exploreCountriesContainer">
+                    <!-- Rendered by app.js -->
+                </div>
+            </div>
+
+            <!-- View 4: Jobs Board -->
+            <div class="page-view" id="view-jobs">
+                <div class="view-header">
+                    <h2 class="view-title">Part-Time Jobs & Opportunities</h2>
+                    <p class="view-desc">Community-shared part-time roles, restaurant shifts, and internships.</p>
+                </div>
+                <div class="cards-list" id="jobsListContainer">
+                    <!-- Rendered by app.js -->
+                </div>
+            </div>
+
+            <!-- View 5: Housing & Accommodation -->
+            <div class="page-view" id="view-housing">
+                <div class="view-header">
+                    <h2 class="view-title">Housing & Room Availability</h2>
+                    <p class="view-desc">Find sublets, room shares, and student accommodation posted by community members.</p>
+                </div>
+                <div class="cards-list" id="housingListContainer">
+                    <!-- Rendered by app.js -->
+                </div>
+            </div>
+
+            <!-- View 6: Direct Messages -->
+            <div class="page-view" id="view-messages">
+                <div class="messaging-container">
+                    <div class="conversations-sidebar">
+                        <div class="conv-header">Messages</div>
+                        <div class="conv-list" id="conversationsList">
+                            <!-- Rendered by app.js -->
+                        </div>
+                    </div>
+                    <div class="chat-area">
+                        <div class="chat-header">
+                            💬 Conversation with <span id="chatHeaderName">Community Member</span>
+                        </div>
+                        <div class="chat-messages" id="chatMessagesContainer">
+                            <!-- Messages rendered by app.js -->
+                        </div>
+                        <div class="chat-input-box">
+                            <input type="text" placeholder="Write a message..." onkeydown="if(event.key==='Enter') alert('Message sent!')">
+                            <button class="btn-primary" onclick="alert('Message sent!')">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View 7: Full Profile View -->
+            <div class="page-view" id="view-profile">
+                <div id="userProfileContainer">
+                    <!-- Profile rendered dynamically by app.js -->
+                </div>
+            </div>
+
+            <!-- View 8: Connections Page View -->
+            <div class="page-view" id="view-connections">
+                <div class="view-header">
+                    <h2 class="view-title">🤝 Connections & Network</h2>
+                    <p class="view-desc">Connect with students, alumni, and professionals living abroad or planning their journey.</p>
+                </div>
+
+                <!-- Tabs -->
+                <div class="connections-tabs">
+                    <button class="connections-tab-btn active" id="btnDashTabReceived" onclick="switchConnectionsTab('received')">
+                        📥 Incoming Requests <span class="badge-pill" id="dashTabReceivedCount">0</span>
+                    </button>
+                    <button class="connections-tab-btn" id="btnDashTabSent" onclick="switchConnectionsTab('sent')">
+                        📤 Sent Requests <span class="badge-pill" id="dashTabSentCount">0</span>
+                    </button>
+                    <button class="connections-tab-btn" id="btnDashTabConnected" onclick="switchConnectionsTab('connected')">
+                        👥 My Connections <span class="badge-pill" id="dashTabConnectedCount">0</span>
+                    </button>
+                </div>
+
+                <!-- Content Cards Grid / Container -->
+                <div id="dashConnectionsContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <!-- Rendered by app.js -->
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Right Sidebar Widgets -->
+        <aside class="right-sidebar">
+            <!-- Widget 1: People You May Know -->
+            <div class="widget-card">
+                <div class="widget-title">
+                    <span>People You May Know</span>
+                    <a href="#" style="font-size: 0.8rem;" onclick="switchView('people')">See all</a>
+                </div>
+                <div class="widget-list" id="peopleSuggestionsList">
+                    <!-- Rendered by app.js -->
+                </div>
+            </div>
+
+            <!-- Widget 2: Active Communities -->
+            <div class="widget-card">
+                <div class="widget-title">
+                    <span>Your Communities</span>
+                    <a href="#" style="font-size: 0.8rem;" onclick="switchView('explore')">Explore</a>
+                </div>
+                <div class="widget-list" id="communitiesWidgetList">
+                    <!-- Rendered by app.js -->
+                </div>
+            </div>
+
+            <!-- Widget 3: Trending Opportunities -->
+            <div class="widget-card">
+                <div class="widget-title">
+                    <span>Trending Leads</span>
+                </div>
+                <div class="widget-list">
+                    <div style="font-size: 0.85rem; padding: 0.25rem 0;">
+                        <strong style="color: var(--primary);">💼 Evening Waiter</strong>
+                        <div style="color: var(--text-muted); font-size: 0.75rem;">Toronto, Canada • $18-21/hr</div>
+                    </div>
+                    <div style="font-size: 0.85rem; padding: 0.25rem 0;">
+                        <strong style="color: var(--primary);">🏠 Private Room</strong>
+                        <div style="color: var(--text-muted); font-size: 0.75rem;">Melbourne, Australia • $700/mo</div>
+                    </div>
+                    <div style="font-size: 0.85rem; padding: 0.25rem 0;">
+                        <strong style="color: var(--primary);">🎓 Alumni Meetup</strong>
+                        <div style="color: var(--text-muted); font-size: 0.75rem;">Vancouver, Canada • Next Saturday</div>
+                    </div>
+                </div>
+    </div>
+
+    <!-- Edit Profile Modal Dialog -->
+    <div class="modal-overlay" id="editProfileModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title">✏️ Edit ConnectAbroad Profile</div>
+                <button class="modal-close-btn" onclick="closeEditProfileModal()">&times;</button>
+            </div>
+            <form id="editProfileForm" onsubmit="handleSaveProfile(event)">
+                <div class="modal-body">
+                    
+                    <!-- Basic Info -->
+                    <div class="form-section-title">Basic Information</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="profName">Full Name</label>
+                            <input type="text" id="profName" class="form-control" placeholder="e.g. Aditya Bandi" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="profPhoto">Profile Photo URL / Initials</label>
+                            <input type="text" id="profPhoto" class="form-control" placeholder="e.g. https://... or AB">
+                        </div>
+                        <div class="form-group-full">
+                            <label for="profBio">About / Bio</label>
+                            <textarea id="profBio" class="form-control" rows="3" placeholder="Share a short summary about your background and abroad aspirations..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Education -->
+                    <div class="form-section-title">Education</div>
+                    <div class="form-grid">
+                        <div class="form-group-full">
+                            <label for="profCollegeName">College / Institution</label>
+                            <input type="text" id="profCollegeName" class="form-control" placeholder="e.g. Sri Indu Institute of Engineering & Technology">
+                        </div>
+                        <div class="form-group">
+                            <label for="profDegree">Degree / Program</label>
+                            <input type="text" id="profDegree" class="form-control" placeholder="e.g. B.Tech Computer Science">
+                        </div>
+                        <div class="form-group">
+                            <label for="profGraduationYear">Graduation Year</label>
+                            <input type="number" id="profGraduationYear" class="form-control" placeholder="e.g. 2024" min="1950" max="2035">
+                        </div>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="form-section-title">Location & Hometown</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="profHometown">Hometown / Origin</label>
+                            <input type="text" id="profHometown" class="form-control" placeholder="e.g. Hyderabad, India">
+                        </div>
+                        <div class="form-group">
+                            <label for="profCurrentCountry">Current Country</label>
+                            <select id="profCurrentCountry" class="form-control">
+                                <option value="India">India</option>
+                                <option value="Canada">Canada</option>
+                                <option value="United States">United States</option>
+                                <option value="United Kingdom">United Kingdom</option>
+                                <option value="Australia">Australia</option>
+                                <option value="Germany">Germany</option>
+                                <option value="Ireland">Ireland</option>
+                                <option value="New Zealand">New Zealand</option>
+                                <option value="UAE">UAE</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="profCurrentCity">Current City</label>
+                            <input type="text" id="profCurrentCity" class="form-control" placeholder="e.g. Hyderabad or Toronto">
+                        </div>
+                    </div>
+
+                    <!-- Abroad Journey Fields (Toggled dynamically for ASPIRING vs ABROAD) -->
+                    <div class="form-section-title">Abroad Journey</div>
+                    <div class="form-grid">
+                        <div class="form-group" id="groupTargetCountry">
+                            <label for="profTargetCountry">Target Country</label>
+                            <select id="profTargetCountry" class="form-control">
+                                <option value="Canada">Canada</option>
+                                <option value="United States">United States</option>
+                                <option value="United Kingdom">United Kingdom</option>
+                                <option value="Australia">Australia</option>
+                                <option value="Germany">Germany</option>
+                                <option value="Ireland">Ireland</option>
+                                <option value="New Zealand">New Zealand</option>
+                                <option value="UAE">UAE</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="groupTargetCity">
+                            <label for="profTargetCity">Target City</label>
+                            <input type="text" id="profTargetCity" class="form-control" placeholder="e.g. Toronto or Melbourne">
+                        </div>
+                        <div class="form-group" id="groupTargetUniv">
+                            <label for="profTargetUniversity">Target University / Workplace</label>
+                            <input type="text" id="profTargetUniversity" class="form-control" placeholder="e.g. University of Toronto">
+                        </div>
+                        <div class="form-group" id="groupExpectedMoveDate">
+                            <label for="profExpectedMoveDate">Expected Move Date</label>
+                            <input type="date" id="profExpectedMoveDate" class="form-control">
+                        </div>
+                        <div class="form-group" id="groupMovedYear" style="display: none;">
+                            <label for="profMovedYear">Year Moved Abroad</label>
+                            <input type="number" id="profMovedYear" class="form-control" placeholder="e.g. 2023" min="1950" max="2035">
+                        </div>
+                    </div>
+
+                    <!-- Professional Information -->
+                    <div class="form-section-title">Professional Background</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="profProfession">Profession / Field</label>
+                            <input type="text" id="profProfession" class="form-control" placeholder="e.g. Software Developer or Student">
+                        </div>
+                        <div class="form-group">
+                            <label for="profExperienceYears">Experience (Years)</label>
+                            <input type="number" id="profExperienceYears" class="form-control" placeholder="e.g. 2" min="0">
+                        </div>
+                        <div class="form-group-full">
+                            <label for="profSkills">Key Skills (Comma Separated)</label>
+                            <input type="text" id="profSkills" class="form-control" placeholder="e.g. Java, Spring Boot, React, SQL">
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeEditProfileModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Profile</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="/js/mockData.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

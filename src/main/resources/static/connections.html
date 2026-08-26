@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connections - ConnectAbroad</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar">
+        <div class="nav-brand" onclick="window.location.href='/dashboard.html'">
+            <div class="brand-icon">CA</div>
+            <div class="brand-name">Connect<span>Abroad</span></div>
+        </div>
+
+        <div class="nav-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearchInput" class="search-input" placeholder="Search people, colleges, cities...">
+        </div>
+
+        <div class="nav-actions">
+            <button class="nav-icon-btn" title="Notifications" onclick="window.location.href='/connections.html'">
+                🔔 <span class="nav-badge" id="navNotificationBadge"></span>
+            </button>
+            <button class="nav-icon-btn" title="Messages" onclick="window.location.href='/dashboard.html?view=messages'">
+                💬
+            </button>
+
+            <div class="user-dropdown-container">
+                <div class="user-profile-trigger" id="userProfileTrigger">
+                    <div class="avatar-circle" id="navUserAvatar">CA</div>
+                    <span class="trigger-name" id="navUserName">User</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">▼</span>
+                </div>
+
+                <div class="dropdown-menu" id="userDropdown">
+                    <div class="dropdown-item" onclick="window.location.href='/dashboard.html?view=profile'">👤 My Profile</div>
+                    <div class="dropdown-item" onclick="window.location.href='/connections.html'">🤝 My Connections</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="window.location.href='/dashboard.html'">🏠 Home Feed</div>
+                    <div class="dropdown-item" onclick="window.location.href='/dashboard.html?view=people'">👥 People Directory</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" id="logoutAction" style="color: var(--danger-text);">🚪 Logout</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- App Layout -->
+    <div class="app-layout">
+        
+        <!-- Left Sidebar Navigation -->
+        <aside class="left-sidebar">
+            <div class="sidebar-card">
+                <ul class="nav-menu">
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html'">
+                        <span class="nav-item-icon">🏠</span> Home Feed
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=people'">
+                        <span class="nav-item-icon">👥</span> People Directory
+                    </li>
+                    <li class="nav-item active">
+                        <span class="nav-item-icon">🤝</span> My Connections
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=explore'">
+                        <span class="nav-item-icon">🌎</span> Explore Communities
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=messages'">
+                        <span class="nav-item-icon">💬</span> Direct Messages
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Mini User Profile -->
+            <div class="user-mini-profile">
+                <div class="avatar-circle" id="miniUserAvatar">CA</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="mini-name" id="miniUserName">User</div>
+                    <div class="mini-status" id="miniUserStatus">Connected</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-view active" id="view-connections-page">
+                
+                <div class="view-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <div>
+                        <h2 class="view-title">Connections</h2>
+                        <p class="view-desc">Manage your professional network, pending requests, and abroad connections.</p>
+                    </div>
+                    <div class="header-count-badge" id="connectionsHeaderCountBadge">0 Connections</div>
+                </div>
+
+                <!-- Search Input Bar -->
+                <div class="search-connections-bar">
+                    <input type="text" id="connectionsSearchInput" class="form-control" placeholder="Search your connections by name, profession, city, country, college..." oninput="handleConnectionsSearch()">
+                </div>
+
+                <!-- Tabs -->
+                <div class="connections-tabs">
+                    <button class="connections-tab-btn active" id="btnTabReceived" onclick="switchConnectionsTab('received')">
+                        📥 Connection Requests <span class="badge-pill" id="tabReceivedCount">0</span>
+                    </button>
+                    <button class="connections-tab-btn" id="btnTabConnected" onclick="switchConnectionsTab('connected')">
+                        👥 My Connections <span class="badge-pill" id="tabConnectedCount">0</span>
+                    </button>
+                    <button class="connections-tab-btn" id="btnTabSent" onclick="switchConnectionsTab('sent')">
+                        📤 Sent Requests <span class="badge-pill" id="tabSentCount">0</span>
+                    </button>
+                </div>
+
+                <!-- Content Cards Grid / Container -->
+                <div id="connectionsContainer" class="connections-grid">
+                    <!-- Rendered by app.js -->
+                </div>
+
+            </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="right-sidebar">
+            <div class="widget-card">
+                <div class="widget-title">
+                    <span>Network Summary</span>
+                </div>
+                <div style="font-size: 0.88rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Incoming Requests</span>
+                        <strong id="statPendingReceived" style="color: var(--primary);">0</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Sent Requests</span>
+                        <strong id="statPendingSent" style="color: var(--text-main);">0</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Accepted Connections</span>
+                        <strong id="statTotalConnected" style="color: var(--success-text);">0</strong>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initConnectionsPage();
+        });
+    </script>
+</body>
+</html>

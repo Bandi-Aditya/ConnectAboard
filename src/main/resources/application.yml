@@ -1,0 +1,25 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: ConnectAbroad
+
+  datasource:
+    url: jdbc:postgresql://localhost:${SPRING_DATASOURCE_PORT:5433}/${SPRING_DATASOURCE_DB:connectabroad}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+jwt:
+  # Secret key for HMAC-SHA256
+  secret: 9a2f8c7e6b5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b
+  expiration: 86400000 # 24 hours in milliseconds
