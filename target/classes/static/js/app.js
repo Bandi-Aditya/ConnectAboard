@@ -1,745 +1,1135 @@
 /**
- * ConnectAbroad - Phase 3 Frontend App Controller
- * Manages view routing, real User Profile API integration, profile completion tracking,
- * profile editing modal, real People Discovery API, dynamic specifications filtering,
- * match reasons engine ("Why This Person?"), feed rendering, and social interactions.
+ * ConnectAbroad Frontend Application Engine
+ * Unified Authenticated API Client, Profile System, People Directory, Connections & Chat
  */
 
-document.addEventListener('DOMContentLoaded', () => {
-    initAuth();
-    initAppNavigation();
-    updateNotificationBadge();
-    renderFeed('all');
-    renderRightSidebar();
-    fetchPeopleDirectory(0);
-    fetchSameCollegeSection();
-    fetchDestinationSection();
-    renderJobsView();
-    renderHousingView();
-    renderExploreView();
-    renderMessagesView();
-    initComposer();
-});
-
-// Global state
 let currentUser = null;
 let currentProfile = null;
 let currentView = 'home';
-let activeConversationId = 601;
-
-// Phase 3 People Discovery State
 let peopleCurrentPage = 0;
-let peoplePageSize = 12;
-let peopleTotalPages = 0;
+let feedCurrentPage = 0;
 let filterDebounceTimeout = null;
 
+// Chat / Messaging state
+let activeConversationId = null;
+let activeRecipientId = null;
+let userConversations = [];
+let stompClient = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    initApp();
+});
+
 /**
- * Check JWT Token and load current user & real profile
+ * Unified Authenticated API Client Wrapper
+ * Ensures JWT is properly attached to all backend requests
  */
-async function initAuth() {
+async function authenticatedFetch(url, options = {}) {
     const token = localStorage.getItem('jwtToken');
     if (!token) {
-        window.location.href = '/login.html';
-        return;
-    }
-
-    const cachedUser = localStorage.getItem('user');
-    if (cachedUser) {
-        try {
-            currentUser = JSON.parse(cachedUser);
-            updateUserUI(currentUser, currentProfile);
-        } catch (e) {}
-    }
-
-    try {
-        const response = await fetch('/api/users/me', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.ok) {
-            const userData = await response.json();
-            currentUser = {
-                id: userData.id,
-                name: userData.name,
-                email: userData.email,
-                role: userData.role,
-                userType: userData.userType
-            };
-            localStorage.setItem('user', JSON.stringify(currentUser));
-            updateUserUI(currentUser, currentProfile);
-
-            await fetchMyProfile();
-        } else if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem('jwtToken');
-            localStorage.removeItem('user');
+        console.warn('No JWT token found in localStorage');
+        const isPublicPage = window.location.pathname.endsWith('/login.html') || 
+                             window.location.pathname.endsWith('/register.html') || 
+                             window.location.pathname.endsWith('/index.html');
+        if (!isPublicPage) {
             window.location.href = '/login.html';
         }
-    } catch (err) {
-        console.warn("API Offline, using local session state", err);
-    }
-}
-
-/**
- * Fetch authenticated user profile from GET /api/profiles/me
- */
-async function fetchMyProfile() {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
-    try {
-        const response = await fetch('/api/profiles/me', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.ok) {
-            currentProfile = await response.json();
-            updateUserUI(currentUser, currentProfile);
-            renderProfileCompletionWidget(currentProfile);
-            renderUserProfile(currentProfile);
-            fetchSameCollegeSection();
-            fetchDestinationSection();
-        } else if (response.status === 404) {
-            currentProfile = null;
-            renderProfileCompletionWidget(null);
-            renderUserProfile(null);
-        }
-    } catch (err) {
-        console.warn("Could not fetch user profile", err);
-    }
-}
-
-/**
- * Bind Logged-In User Details to UI
- */
-function updateUserUI(user, profile) {
-    if (!user) return;
-
-    const nameToDisplay = profile ? profile.userName : user.name;
-
-    const navName = document.getElementById('navUserName');
-    if (navName) navName.innerText = nameToDisplay;
-
-    const navAvatar = document.getElementById('navUserAvatar');
-    if (navAvatar) {
-        const photoOrInitials = profile && profile.profilePhoto ? profile.profilePhoto : getInitials(nameToDisplay);
-        navAvatar.innerText = photoOrInitials;
-        navAvatar.style.backgroundColor = '#2563eb';
+        throw new Error('Unauthenticated');
     }
 
-    const miniName = document.getElementById('miniUserName');
-    if (miniName) miniName.innerText = nameToDisplay;
-
-    const miniStatus = document.getElementById('miniUserStatus');
-    if (miniStatus) {
-        if (profile && profile.currentCity && profile.currentCountry) {
-            miniStatus.innerText = profile.userType === 'ABROAD'
-                ? `🟢 Living in ${profile.currentCity}`
-                : `✈️ Target: ${profile.targetCity || profile.targetCountry || 'Abroad'}`;
-        } else {
-            miniStatus.innerText = user.userType === 'ABROAD' ? '🟢 Living Abroad' : '✈️ Planning to Move';
-        }
+    const headers = options.headers || {};
+    if (!headers['Authorization'] && !headers['authorization']) {
+        headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const miniAvatar = document.getElementById('miniUserAvatar');
-    if (miniAvatar) {
-        miniAvatar.innerText = getInitials(nameToDisplay);
-        miniAvatar.style.backgroundColor = '#2563eb';
-    }
-
-    const welcomeTitle = document.getElementById('welcomeTitle');
-    if (welcomeTitle) {
-        welcomeTitle.innerText = `Welcome back, ${nameToDisplay} 👋`;
-    }
-}
-
-/**
- * Render Profile Completion Widget on Home Feed
- */
-function renderProfileCompletionWidget(profile) {
-    const widgetElem = document.getElementById('profileCompletionWidget');
-    if (!widgetElem) return;
-
-    if (!profile || profile.profileCompletion < 100) {
-        const pct = profile ? profile.profileCompletion : 0;
-        const chk = profile && profile.completionChecklist ? profile.completionChecklist : {};
-
-        widgetElem.innerHTML = `
-            <div class="completion-widget-card">
-                <div class="completion-header">
-                    <div>
-                        <div class="completion-title">Complete your ConnectAbroad profile</div>
-                        <div style="font-size: 0.85rem; color: var(--text-muted);">
-                            Complete your details to connect with alumni, students, and professionals abroad.
-                        </div>
-                    </div>
-                    <div class="completion-percentage-badge">${pct}%</div>
-                </div>
-                
-                <div class="progress-track">
-                    <div class="progress-fill" style="width: ${pct}%;"></div>
-                </div>
-
-                <div class="checklist-grid">
-                    <div class="checklist-item ${chk.basicInfo ? 'done' : 'pending'}">
-                        ${chk.basicInfo ? '✓' : '✗'} Basic Information
-                    </div>
-                    <div class="checklist-item ${chk.college ? 'done' : 'pending'}">
-                        ${chk.college ? '✓' : '✗'} College / Institution
-                    </div>
-                    <div class="checklist-item ${chk.hometown ? 'done' : 'pending'}">
-                        ${chk.hometown ? '✓' : '✗'} Hometown / Origin
-                    </div>
-                    <div class="checklist-item ${chk.currentLocation ? 'done' : 'pending'}">
-                        ${chk.currentLocation ? '✓' : '✗'} Current Location
-                    </div>
-                    <div class="checklist-item ${chk.profession ? 'done' : 'pending'}">
-                        ${chk.profession ? '✓' : '✗'} Profession / Field
-                    </div>
-                    <div class="checklist-item ${chk.journey ? 'done' : 'pending'}">
-                        ${chk.journey ? '✓' : '✗'} ${currentUser && currentUser.userType === 'ASPIRING' ? 'Target Destination' : 'Moved Year'}
-                    </div>
-                    <div class="checklist-item ${chk.profilePhoto ? 'done' : 'pending'}">
-                        ${chk.profilePhoto ? '✓' : '✗'} Profile Photo
-                    </div>
-                    <div class="checklist-item ${chk.bio ? 'done' : 'pending'}">
-                        ${chk.bio ? '✓' : '✗'} About & Bio
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 0.75rem; align-items: center;">
-                    <button class="btn-primary" onclick="openEditProfileModal()">
-                        ${profile ? '✏️ Update Profile' : '🚀 Complete Profile'}
-                    </button>
-                    <button class="btn-secondary" onclick="switchView('profile')">
-                        👤 View Profile
-                    </button>
-                </div>
-            </div>
-        `;
-    } else {
-        widgetElem.innerHTML = '';
-    }
-}
-
-/**
- * Render Social Profile View Page
- */
-function renderUserProfile(profile) {
-    const profileContainer = document.getElementById('userProfileContainer');
-    if (!profileContainer) return;
-
-    if (!profile) {
-        profileContainer.innerHTML = `
-            <div class="profile-cover"></div>
-            <div class="profile-body-card" style="text-align: center; padding: 3rem 1.5rem;">
-                <div class="avatar-circle" style="width: 80px; height: 80px; font-size: 1.8rem; margin: -40px auto 1rem auto; background-color: var(--primary);">
-                    ${getInitials(currentUser ? currentUser.name : 'User')}
-                </div>
-                <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem;">Create Your ConnectAbroad Profile</h2>
-                <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto 1.5rem auto; font-size: 0.95rem;">
-                    You haven't set up your profile yet. Add your college, hometown, location, profession, and abroad journey so fellow graduates and students can connect with you!
-                </p>
-                <button class="btn-primary" onclick="openEditProfileModal()" style="padding: 0.75rem 1.5rem; font-size: 0.95rem;">
-                    🚀 Set Up My Profile Now
-                </button>
-            </div>
-        `;
-        return;
-    }
-
-    const isAbroad = profile.userType === 'ABROAD';
-    const statusText = isAbroad
-        ? `🟢 Living in ${escapeHtml(profile.currentCity || profile.currentCountry || 'Abroad')}`
-        : `✈️ Planning to move to ${escapeHtml(profile.targetCity || profile.targetCountry || 'Abroad')}`;
-    const statusClass = isAbroad ? 'badge-abroad' : 'badge-aspiring';
-
-    const skillsList = profile.skills
-        ? profile.skills.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-
-    profileContainer.innerHTML = `
-        <div class="profile-cover"></div>
-        <div class="profile-body-card">
-            <div class="profile-avatar-row">
-                <div class="avatar-circle profile-main-avatar" style="background-color: var(--primary);">
-                    ${escapeHtml(profile.profilePhoto || getInitials(profile.userName || profile.name))}
-                </div>
-                <button class="btn-secondary" onclick="openEditProfileModal()">✏️ Edit Profile</button>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                    <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">${escapeHtml(profile.userName || profile.name)}</h2>
-                    <p style="color: var(--text-muted); font-size: 0.95rem; font-weight: 500;">
-                        ${escapeHtml(profile.profession || 'Community Member')} ${profile.experienceYears ? '• ' + profile.experienceYears + ' yrs exp' : ''}
-                    </p>
-                </div>
-                <span class="badge ${statusClass}" style="font-size: 0.85rem; padding: 0.4rem 0.85rem;">
-                    ${statusText}
-                </span>
-            </div>
-
-            <!-- Meta Details -->
-            <div style="display: flex; flex-wrap: wrap; gap: 1.25rem; margin: 1.25rem 0; font-size: 0.9rem; color: var(--text-main);">
-                <div>📍 <strong>Location:</strong> ${escapeHtml(profile.currentCity || '')} ${profile.currentCountry ? '(' + escapeHtml(profile.currentCountry) + ')' : ''}</div>
-                <div>🎓 <strong>College:</strong> ${escapeHtml(profile.collegeName || 'N/A')}</div>
-                <div>🏠 <strong>Hometown:</strong> ${escapeHtml(profile.hometown || 'N/A')}</div>
-                <div>👥 <strong>Connections:</strong> ${profile.connectionCount || 0}</div>
-            </div>
-
-            <!-- About Section -->
-            <div style="margin: 1.5rem 0;">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">About</h3>
-                <p style="font-size: 0.95rem; line-height: 1.6; color: var(--text-main); background: #f8fafc; padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                    ${profile.bio ? escapeHtml(profile.bio) : '<em>No bio added yet. Click "Edit Profile" to add an overview.</em>'}
-                </p>
-            </div>
-
-            <!-- Education Section -->
-            <div style="margin: 1.5rem 0;">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Education</h3>
-                <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
-                    <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">
-                        🎓 ${escapeHtml(profile.collegeName || 'College Not Specified')}
-                    </div>
-                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
-                        ${escapeHtml(profile.degree || 'Degree Program')} ${profile.graduationYear ? '• Graduated Class of ' + profile.graduationYear : ''}
-                    </div>
-                    ${profile.collegeCity ? `<div style="font-size: 0.8rem; color: var(--text-light); margin-top: 0.15rem;">📍 ${escapeHtml(profile.collegeCity)}, ${escapeHtml(profile.collegeCountry || '')}</div>` : ''}
-                </div>
-            </div>
-
-            <!-- Abroad Journey -->
-            <div class="journey-card">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main);">Abroad Journey Flow</h3>
-                <div class="journey-flow">
-                    <div class="journey-step">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Origin / Hometown</div>
-                        <div style="font-size: 0.95rem; font-weight: 700; margin-top: 0.25rem;">📍 ${escapeHtml(profile.hometown || 'India')}</div>
-                    </div>
-                    <div class="journey-arrow">➔</div>
-                    <div class="journey-step">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
-                            ${isAbroad ? 'Current Living Abroad' : 'Target Destination'}
-                        </div>
-                        <div style="font-size: 0.95rem; font-weight: 700; margin-top: 0.25rem;">
-                            ${isAbroad
-                                ? `🌐 ${escapeHtml(profile.currentCity || '')} ${escapeHtml(profile.currentCountry || 'Abroad')}`
-                                : `🎯 ${escapeHtml(profile.targetCity || '')} ${escapeHtml(profile.targetCountry || 'Abroad')}`
-                            }
-                        </div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">
-                            ${isAbroad
-                                ? (profile.movedYear ? `Living abroad since ${profile.movedYear}` : 'Living abroad')
-                                : (profile.expectedMoveDate ? `Expected move: ${profile.expectedMoveDate}` : 'Planning to move')
-                            }
-                            ${!isAbroad && profile.targetUniversity ? ` • ${escapeHtml(profile.targetUniversity)}` : ''}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Skills Section -->
-            <div style="margin: 1.5rem 0;">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Skills & Specialties</h3>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                    ${skillsList.length > 0
-                        ? skillsList.map(skill => `<span class="badge badge-abroad" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">${escapeHtml(skill)}</span>`).join('')
-                        : '<span style="color: var(--text-muted); font-size: 0.85rem;">No skills listed yet.</span>'
-                    }
-                </div>
-            </div>
-
-            <!-- Profile Completion Progress -->
-            ${profile.profileCompletion !== undefined ? `
-                <div style="border-top: 1px solid var(--border-color); padding-top: 1.25rem; margin-top: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Profile Completion Score</span>
-                        <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary);">${profile.profileCompletion}%</span>
-                    </div>
-                    <div class="progress-track" style="margin-bottom: 0;">
-                        <div class="progress-fill" style="width: ${profile.profileCompletion}%;"></div>
-                    </div>
-                </div>
-            ` : ''}
-
-        </div>
-    `;
-}
-
-/**
- * Render Public Social Profile View (For Other Users)
- */
-function renderPublicUserProfilePage(publicProfile) {
-    const profileContainer = document.getElementById('userProfileContainer');
-    if (!profileContainer) return;
-
-    const isAbroad = publicProfile.userType === 'ABROAD';
-    const statusText = isAbroad
-        ? `🟢 Living in ${escapeHtml(publicProfile.currentCity || publicProfile.currentCountry || 'Abroad')}`
-        : `✈️ Planning to move to ${escapeHtml(publicProfile.targetCity || publicProfile.targetCountry || 'Abroad')}`;
-    const statusClass = isAbroad ? 'badge-abroad' : 'badge-aspiring';
-
-    const skillsList = publicProfile.skills
-        ? publicProfile.skills.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-
-    const matchReasons = publicProfile.matchReasons || [];
-
-    profileContainer.innerHTML = `
-        <div class="profile-cover"></div>
-        <div class="profile-body-card">
-            <div class="profile-avatar-row">
-                <div class="avatar-circle profile-main-avatar" style="background-color: var(--primary);">
-                    ${escapeHtml(publicProfile.profilePhoto || getInitials(publicProfile.name))}
-                </div>
-                <div>
-                    ${renderConnectionActionButton(publicProfile)}
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                    <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">${escapeHtml(publicProfile.name)}</h2>
-                    <p style="color: var(--text-muted); font-size: 0.95rem; font-weight: 500;">
-                        ${escapeHtml(publicProfile.profession || 'Community Member')} ${publicProfile.experienceYears ? '• ' + publicProfile.experienceYears + ' yrs exp' : ''}
-                    </p>
-                </div>
-                <span class="badge ${statusClass}" style="font-size: 0.85rem; padding: 0.4rem 0.85rem;">
-                    ${statusText}
-                </span>
-            </div>
-
-            <!-- Match Reasons Box -->
-            ${matchReasons.length > 0 ? `
-                <div style="background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin: 1rem 0;">
-                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--success-text); text-transform: uppercase; margin-bottom: 0.25rem;">
-                        💡 Why This Person Matches Your Journey
-                    </div>
-                    <div class="match-reasons-box" style="margin: 0;">
-                        ${matchReasons.map(r => `<span class="match-chip">${escapeHtml(r)}</span>`).join('')}
-                    </div>
-                </div>
-            ` : ''}
-
-            <!-- Meta Details -->
-            <div style="display: flex; flex-wrap: wrap; gap: 1.25rem; margin: 1.25rem 0; font-size: 0.9rem; color: var(--text-main);">
-                <div>📍 <strong>Location:</strong> ${escapeHtml(publicProfile.currentCity || '')} ${publicProfile.currentCountry ? '(' + escapeHtml(publicProfile.currentCountry) + ')' : ''}</div>
-                <div>🎓 <strong>College:</strong> ${escapeHtml(publicProfile.collegeName || 'N/A')}</div>
-                <div>🏠 <strong>Hometown:</strong> ${escapeHtml(publicProfile.hometown || 'N/A')}</div>
-                <div>👥 <strong>Connections:</strong> ${publicProfile.connectionCount || 0}</div>
-            </div>
-
-            <!-- About Section -->
-            <div style="margin: 1.5rem 0;">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">About</h3>
-                <p style="font-size: 0.95rem; line-height: 1.6; color: var(--text-main); background: #f8fafc; padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                    ${publicProfile.bio ? escapeHtml(publicProfile.bio) : '<em>No bio information provided.</em>'}
-                </p>
-            </div>
-
-            <!-- Education Section -->
-            <div style="margin: 1.5rem 0;">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Education</h3>
-                <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
-                    <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">
-                        🎓 ${escapeHtml(publicProfile.collegeName || 'College Not Specified')}
-                    </div>
-                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
-                        ${escapeHtml(publicProfile.degree || 'Degree Program')} ${publicProfile.graduationYear ? '• Graduated Class of ' + publicProfile.graduationYear : ''}
-                    </div>
-                    ${publicProfile.collegeCity ? `<div style="font-size: 0.8rem; color: var(--text-light); margin-top: 0.15rem;">📍 ${escapeHtml(publicProfile.collegeCity)}, ${escapeHtml(publicProfile.collegeCountry || '')}</div>` : ''}
-                </div>
-            </div>
-
-            <!-- Abroad Journey -->
-            <div class="journey-card">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main);">Abroad Journey Flow</h3>
-                <div class="journey-flow">
-                    <div class="journey-step">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Origin / Hometown</div>
-                        <div style="font-size: 0.95rem; font-weight: 700; margin-top: 0.25rem;">📍 ${escapeHtml(publicProfile.hometown || 'India')}</div>
-                    </div>
-                    <div class="journey-arrow">➔</div>
-                    <div class="journey-step">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
-                            ${isAbroad ? 'Current Living Abroad' : 'Target Destination'}
-                        </div>
-                        <div style="font-size: 0.95rem; font-weight: 700; margin-top: 0.25rem;">
-                            ${isAbroad
-                                ? `🌐 ${escapeHtml(publicProfile.currentCity || '')} ${escapeHtml(publicProfile.currentCountry || 'Abroad')}`
-                                : `🎯 ${escapeHtml(publicProfile.targetCity || '')} ${escapeHtml(publicProfile.targetCountry || 'Abroad')}`
-                            }
-                        </div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">
-                            ${isAbroad
-                                ? (publicProfile.movedYear ? `Living abroad since ${publicProfile.movedYear}` : 'Living abroad')
-                                : (publicProfile.expectedMoveDate ? `Expected move: ${publicProfile.expectedMoveDate}` : 'Planning to move')
-                            }
-                            ${!isAbroad && publicProfile.targetUniversity ? ` • ${escapeHtml(publicProfile.targetUniversity)}` : ''}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Skills Section -->
-            <div style="margin: 1.5rem 0;">
-                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Skills & Specialties</h3>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                    ${skillsList.length > 0
-                        ? skillsList.map(skill => `<span class="badge badge-abroad" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">${escapeHtml(skill)}</span>`).join('')
-                        : '<span style="color: var(--text-muted); font-size: 0.85rem;">No skills listed.</span>'
-                    }
-                </div>
-            </div>
-        </div>
-    `;
-
-    switchView('profile');
-}
-
-/**
- * Edit Profile Modal Logic
- */
-function openEditProfileModal() {
-    const modal = document.getElementById('editProfileModal');
-    if (!modal) return;
-
-    const userType = (currentProfile && currentProfile.userType) || (currentUser && currentUser.userType) || 'ASPIRING';
-
-    document.getElementById('profName').value = currentProfile ? (currentProfile.userName || '') : (currentUser ? currentUser.name : '');
-    document.getElementById('profPhoto').value = currentProfile ? (currentProfile.profilePhoto || '') : '';
-    document.getElementById('profBio').value = currentProfile ? (currentProfile.bio || '') : '';
-    document.getElementById('profCollegeName').value = currentProfile ? (currentProfile.collegeName || '') : '';
-    document.getElementById('profDegree').value = currentProfile ? (currentProfile.degree || '') : '';
-    document.getElementById('profGraduationYear').value = currentProfile ? (currentProfile.graduationYear || '') : '';
-    document.getElementById('profHometown').value = currentProfile ? (currentProfile.hometown || '') : '';
-    document.getElementById('profCurrentCountry').value = currentProfile ? (currentProfile.currentCountry || 'India') : 'India';
-    document.getElementById('profCurrentCity').value = currentProfile ? (currentProfile.currentCity || '') : '';
-    document.getElementById('profTargetCountry').value = currentProfile ? (currentProfile.targetCountry || 'Canada') : 'Canada';
-    document.getElementById('profTargetCity').value = currentProfile ? (currentProfile.targetCity || '') : '';
-    document.getElementById('profTargetUniversity').value = currentProfile ? (currentProfile.targetUniversity || '') : '';
-    document.getElementById('profExpectedMoveDate').value = currentProfile ? (currentProfile.expectedMoveDate || '') : '';
-    document.getElementById('profMovedYear').value = currentProfile ? (currentProfile.movedYear || '') : '';
-    document.getElementById('profProfession').value = currentProfile ? (currentProfile.profession || '') : '';
-    document.getElementById('profExperienceYears').value = currentProfile ? (currentProfile.experienceYears !== null && currentProfile.experienceYears !== undefined ? currentProfile.experienceYears : '') : '';
-    document.getElementById('profSkills').value = currentProfile ? (currentProfile.skills || '') : '';
-
-    const movedGroup = document.getElementById('groupMovedYear');
-    const targetCountryGroup = document.getElementById('groupTargetCountry');
-    const targetCityGroup = document.getElementById('groupTargetCity');
-    const targetUnivGroup = document.getElementById('groupTargetUniv');
-    const expectedMoveGroup = document.getElementById('groupExpectedMoveDate');
-
-    if (userType === 'ABROAD') {
-        if (movedGroup) movedGroup.style.display = 'block';
-        if (targetCountryGroup) targetCountryGroup.style.display = 'none';
-        if (targetCityGroup) targetCityGroup.style.display = 'none';
-        if (targetUnivGroup) targetUnivGroup.style.display = 'none';
-        if (expectedMoveGroup) expectedMoveGroup.style.display = 'none';
-    } else {
-        if (movedGroup) movedGroup.style.display = 'none';
-        if (targetCountryGroup) targetCountryGroup.style.display = 'block';
-        if (targetCityGroup) targetCityGroup.style.display = 'block';
-        if (targetUnivGroup) targetUnivGroup.style.display = 'block';
-        if (expectedMoveGroup) expectedMoveGroup.style.display = 'block';
-    }
-
-    modal.classList.add('active');
-}
-
-function closeEditProfileModal() {
-    const modal = document.getElementById('editProfileModal');
-    if (modal) modal.classList.remove('active');
-}
-
-async function handleSaveProfile(event) {
-    event.preventDefault();
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
-    const payload = {
-        name: document.getElementById('profName').value.trim(),
-        profilePhoto: document.getElementById('profPhoto').value.trim(),
-        bio: document.getElementById('profBio').value.trim(),
-        collegeName: document.getElementById('profCollegeName').value.trim(),
-        degree: document.getElementById('profDegree').value.trim(),
-        graduationYear: document.getElementById('profGraduationYear').value ? parseInt(document.getElementById('profGraduationYear').value) : null,
-        hometown: document.getElementById('profHometown').value.trim(),
-        currentCountry: document.getElementById('profCurrentCountry').value,
-        currentCity: document.getElementById('profCurrentCity').value.trim(),
-        targetCountry: document.getElementById('profTargetCountry').value,
-        targetCity: document.getElementById('profTargetCity').value.trim(),
-        targetUniversity: document.getElementById('profTargetUniversity').value.trim(),
-        expectedMoveDate: document.getElementById('profExpectedMoveDate').value || null,
-        movedYear: document.getElementById('profMovedYear').value ? parseInt(document.getElementById('profMovedYear').value) : null,
-        profession: document.getElementById('profProfession').value.trim(),
-        experienceYears: document.getElementById('profExperienceYears').value ? parseInt(document.getElementById('profExperienceYears').value) : null,
-        skills: document.getElementById('profSkills').value.trim()
+    const mergedOptions = {
+        ...options,
+        headers: headers
     };
 
-    const isUpdate = currentProfile !== null;
-    const url = isUpdate ? '/api/profiles/me' : '/api/profiles';
-    const method = isUpdate ? 'PUT' : 'POST';
+    const response = await fetch(url, mergedOptions);
+    
+    if (response.status === 401) {
+        console.warn(`401 Unauthorized for ${url} - Redirecting to login.`);
+        localStorage.removeItem('jwtToken');
+        window.location.href = '/login.html';
+    }
 
-    try {
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+    return response;
+}
 
-        if (response.ok) {
-            currentProfile = await response.json();
-            if (payload.name && currentUser) {
-                currentUser.name = payload.name;
-                localStorage.setItem('user', JSON.stringify(currentUser));
-            }
-            closeEditProfileModal();
-            updateUserUI(currentUser, currentProfile);
-            renderProfileCompletionWidget(currentProfile);
-            renderUserProfile(currentProfile);
-            fetchPeopleDirectory(0);
-            fetchSameCollegeSection();
-            fetchDestinationSection();
-        } else {
-            const errData = await response.json();
-            alert("Error saving profile: " + (errData.message || "Invalid input data"));
+async function initApp() {
+    const token = localStorage.getItem('jwtToken');
+    if (token) {
+        await fetchMyUserData();
+        initStompClient();
+    } else {
+        const isPublicPage = window.location.pathname.endsWith('/login.html') || 
+                             window.location.pathname.endsWith('/register.html') || 
+                             window.location.pathname.endsWith('/index.html');
+        if (!isPublicPage) {
+            window.location.href = '/login.html';
+            return;
         }
-    } catch (err) {
-        console.error("Save profile error", err);
-        alert("Failed to save profile. Please check backend API server.");
+    }
+
+    setupNavigation();
+    setupDropdown();
+    setupGlobalSearch();
+    initComposer();
+    initEditProfileForm();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+    const targetUserParam = urlParams.get('userId');
+    const keywordParam = urlParams.get('keyword');
+
+    if (keywordParam && document.getElementById('searchKeywordInput')) {
+        document.getElementById('searchKeywordInput').value = keywordParam;
+    }
+
+    if (viewParam) {
+        switchView(viewParam);
+        if (viewParam === 'messages' && targetUserParam) {
+            openChatWithUser(null, parseInt(targetUserParam));
+        }
+    } else if (window.location.pathname.includes('/dashboard.html')) {
+        switchView('home');
     }
 }
 
 /**
- * Initialize Router Navigation
+ * Fetch Current Authenticated User & Profile (/api/users/me & /api/profiles/me)
  */
-function initAppNavigation() {
-    const navItems = document.querySelectorAll('.nav-item[data-view]');
+async function fetchMyUserData() {
+    try {
+        const userRes = await authenticatedFetch('/api/users/me');
+        if (userRes.ok) {
+            currentUser = await userRes.json();
+            updateHeaderUserInfo(currentUser);
+        } else {
+            handleLogout();
+            return;
+        }
+
+        const profileRes = await authenticatedFetch('/api/profiles/me');
+        if (profileRes.ok) {
+            currentProfile = await profileRes.json();
+        } else {
+            currentProfile = null;
+        }
+
+        updateNotificationBadge();
+        updateMessagesBadge();
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+    }
+}
+
+function updateHeaderUserInfo(user) {
+    const navAvatar = document.getElementById('navUserAvatar');
+    const navName = document.getElementById('navUserName');
+    const miniAvatar = document.getElementById('miniUserAvatar');
+    const miniName = document.getElementById('miniUserName');
+
+    const initials = getInitials(user.name);
+
+    if (navAvatar) navAvatar.innerText = initials;
+    if (navName) navName.innerText = user.name.split(' ')[0];
+    if (miniAvatar) miniAvatar.innerText = initials;
+    if (miniName) miniName.innerText = user.name;
+
+    const myProfLink = document.getElementById('navMyProfileLink');
+    if (myProfLink) {
+        myProfLink.onclick = () => {
+            window.location.href = `/profile.html?id=${user.id}`;
+        };
+    }
+}
+
+function getInitials(name) {
+    if (!name) return 'CA';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+}
+
+/**
+ * Navigation & Views
+ */
+function setupNavigation() {
+    const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            navItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-            const viewName = item.getAttribute('data-view');
-            switchView(viewName);
+        item.addEventListener('click', () => {
+            const view = item.getAttribute('data-view');
+            if (view) switchView(view);
         });
     });
+}
 
+function switchView(viewName) {
+    currentView = viewName;
+
+    const pageViews = document.querySelectorAll('.page-view');
+    pageViews.forEach(pv => pv.classList.remove('active'));
+
+    const targetView = document.getElementById(`view-${viewName}`);
+    if (targetView) targetView.classList.add('active');
+
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+        if (item.getAttribute('data-view') === viewName) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+
+    if (viewName === 'home') {
+        fetchFeedPosts(0);
+        renderRightSidebar();
+    } else if (viewName === 'people') {
+        fetchPeopleDirectory(0);
+        fetchSameCollegeSection();
+        fetchDestinationSection();
+    } else if (viewName === 'connections') {
+        initConnectionsPage();
+    } else if (viewName === 'profile') {
+        if (currentUser) {
+            window.location.href = `/profile.html?id=${currentUser.id}`;
+        }
+    } else if (viewName === 'messages') {
+        loadConversationsView();
+    }
+}
+
+function setupDropdown() {
     const trigger = document.getElementById('userProfileTrigger');
     const dropdown = document.getElementById('userDropdown');
+
     if (trigger && dropdown) {
         trigger.addEventListener('click', (e) => {
             e.stopPropagation();
-            dropdown.classList.toggle('show');
+            dropdown.classList.toggle('active');
         });
 
-        document.addEventListener('click', () => {
-            dropdown.classList.remove('show');
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target) && !trigger.contains(e.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+    }
+
+    const menuMyProf = document.getElementById('menuMyProfile');
+    if (menuMyProf) {
+        menuMyProf.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            if (window.location.pathname.includes('/dashboard.html')) {
+                switchView('profile');
+            } else {
+                window.location.href = '/profile.html?me=true';
+            }
+        });
+    }
+
+    const menuEditProf = document.getElementById('menuEditProfile');
+    if (menuEditProf) {
+        menuEditProf.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            openEditProfileModal();
+        });
+    }
+
+    const menuConn = document.getElementById('menuConnections');
+    if (menuConn) {
+        menuConn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            if (window.location.pathname.includes('/dashboard.html')) {
+                switchView('connections');
+            } else {
+                window.location.href = '/connections.html';
+            }
+        });
+    }
+
+    const menuMsg = document.getElementById('menuMessages');
+    if (menuMsg) {
+        menuMsg.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            if (window.location.pathname.includes('/dashboard.html')) {
+                switchView('messages');
+            } else {
+                window.location.href = '/dashboard.html?view=messages';
+            }
+        });
+    }
+
+    const menuMyJobs = document.getElementById('menuMyJobs');
+    if (menuMyJobs) {
+        menuMyJobs.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            window.location.href = '/jobs.html?view=my';
+        });
+    }
+
+    const menuSavedJobs = document.getElementById('menuSavedJobs');
+    if (menuSavedJobs) {
+        menuSavedJobs.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            window.location.href = '/jobs.html?view=saved';
+        });
+    }
+
+    const menuSet = document.getElementById('menuSettings');
+    if (menuSet) {
+        menuSet.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            openEditProfileModal();
         });
     }
 
     const logoutBtn = document.getElementById('logoutAction');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            localStorage.removeItem('jwtToken');
-            localStorage.removeItem('user');
-            window.location.href = '/login.html';
+        logoutBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown) dropdown.classList.remove('active');
+            handleLogout();
         });
     }
+}
 
-    const devPageAction = document.getElementById('devPageAction');
-    if (devPageAction) {
-        devPageAction.addEventListener('click', () => {
-            window.location.href = '/dev.html';
-        });
-    }
-
-    const filterTabs = document.querySelectorAll('.tab-pill[data-category]');
-    filterTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            filterTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const category = tab.getAttribute('data-category');
-            renderFeed(category);
+function setupGlobalSearch() {
+    const searchInputs = document.querySelectorAll('#globalSearchInput');
+    searchInputs.forEach(input => {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const keyword = input.value.trim();
+                if (keyword) {
+                    if (window.location.pathname.includes('/dashboard.html')) {
+                        switchView('people');
+                        const searchBox = document.getElementById('searchKeywordInput');
+                        if (searchBox) {
+                            searchBox.value = keyword;
+                            fetchPeopleDirectory(0);
+                        }
+                    } else {
+                        window.location.href = `/dashboard.html?view=people&keyword=${encodeURIComponent(keyword)}`;
+                    }
+                }
+            }
         });
     });
+}
 
-    const searchInput = document.getElementById('globalSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase().trim();
-            if (query.length > 0) {
-                switchView('people');
-                const searchParam = document.getElementById('searchKeywordInput');
-                if (searchParam) {
-                    searchParam.value = query;
-                    handleFilterChange();
+function handleLogout() {
+    localStorage.removeItem('jwtToken');
+    if (stompClient) {
+        try { stompClient.disconnect(); } catch (e) {}
+    }
+    window.location.href = '/login.html';
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+/**
+ * ==========================================================================
+ * Public Profile Navigation & Standalone Profile Controller
+ * ==========================================================================
+ */
+
+function viewUserProfileByPublicId(userId) {
+    if (currentUser && userId === currentUser.id) {
+        window.location.href = '/profile.html?me=true';
+    } else {
+        window.location.href = `/profile.html?id=${userId}`;
+    }
+}
+
+async function initStandaloneProfilePage() {
+    await fetchMyUserData();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUserId = urlParams.get('id');
+    const isMeParam = urlParams.get('me');
+
+    const container = document.getElementById('profilePageContent');
+    if (!container) return;
+
+    let apiUrl = '/api/profiles/me';
+    if (targetUserId && isMeParam !== 'true') {
+        apiUrl = `/api/profiles/${targetUserId}`;
+    }
+
+    try {
+        const response = await authenticatedFetch(apiUrl);
+
+        if (response.ok) {
+            const profile = await response.json();
+            renderProfilePageDetails(container, profile);
+
+            const isOwnProfile = currentUser && (profile.userId === currentUser.id || profile.id === currentUser.id);
+            const heading = document.getElementById('userPostsHeading');
+            if (heading) {
+                heading.innerText = isOwnProfile ? 'Your Posts' : `Posts by ${profile.name}`;
+            }
+
+            fetchUserPostsTimeline(profile.userId || profile.id);
+        } else {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 3rem; background: #ffffff; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                    <div style="font-size: 3rem; margin-bottom: 0.5rem;">⚠️</div>
+                    <h2>Profile Not Found</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">The requested profile does not exist or has been removed.</p>
+                    <button class="btn-primary" onclick="window.location.href='/dashboard.html?view=people'">Back to People Directory</button>
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error("Fetch profile page error:", err);
+    }
+}
+
+function renderProfilePageDetails(container, p) {
+    const pUserId = p.userId || p.id;
+    const isOwnProfile = currentUser && (currentUser.id === p.userId || currentUser.id === p.id);
+    const completion = p.profileCompletion || 0;
+    const isComplete = completion >= 100;
+    const strokeDashoffset = 283 - (283 * completion) / 100;
+
+    const actionBtnHtml = isOwnProfile ? `
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn-primary" onclick="openEditProfileModal()">✏️ Edit Profile</button>
+            <button class="btn-secondary" onclick="window.location.href='/connections.html'">🤝 Connections</button>
+            <button class="btn-secondary" onclick="window.location.href='/jobs.html?view=my'">💼 My Jobs</button>
+        </div>
+    ` : `
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            ${renderConnectionActionButton(p)}
+            <div style="position: relative;">
+                <button class="btn-secondary" style="padding: 0.45rem 0.65rem;" onclick="this.nextElementSibling.classList.toggle('show')">•••</button>
+                <div class="dropdown-menu" style="right: 0; top: calc(100% + 4px);">
+                    <div class="dropdown-item" onclick="showToast('User reported. Thank you.', 'info')">🚩 Report User</div>
+                    <div class="dropdown-item" style="color: var(--danger-text);" onclick="showToast('User blocked.', 'info')">🚫 Block User</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = `
+        <div style="background: #ffffff; border-radius: var(--radius-lg); border: 1px solid var(--border-color); overflow: hidden; box-shadow: var(--shadow-sm);">
+            <div style="height: 120px; background: linear-gradient(135deg, var(--primary) 0%, #1e40af 100%);"></div>
+            <div style="padding: 0 2rem 2rem 2rem; position: relative;">
+                
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: -50px; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                    
+                    ${isOwnProfile ? `
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <div class="profile-completion-ring-container">
+                                <svg class="profile-completion-svg" viewBox="0 0 100 100">
+                                    <circle class="profile-completion-bg" cx="50" cy="50" r="45" />
+                                    <circle class="profile-completion-progress" cx="50" cy="50" r="45"
+                                            stroke-dasharray="283" stroke-dashoffset="${strokeDashoffset}" />
+                                </svg>
+                                <div class="profile-completion-avatar">
+                                    ${p.profilePhoto ? `<img src="${escapeHtml(p.profilePhoto)}" alt="Avatar">` : getInitials(p.name)}
+                                </div>
+                                ${isComplete ? `<div class="completion-check-badge" title="100% Complete">✓</div>` : ''}
+                            </div>
+                            <div class="completion-percent-label">${completion}% Profile Complete</div>
+                        </div>
+                    ` : `
+                        <div class="avatar-circle" style="width: 100px; height: 100px; font-size: 2rem; border: 4px solid #ffffff; box-shadow: var(--shadow-md);">
+                            ${p.profilePhoto ? `<img src="${escapeHtml(p.profilePhoto)}" alt="Avatar">` : getInitials(p.name)}
+                        </div>
+                    `}
+
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <span class="header-count-badge">${p.connectionCount || 0} Connections</span>
+                        ${actionBtnHtml}
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <h1 style="font-size: 1.6rem; font-weight: 700; color: var(--text-main); margin: 0;">${escapeHtml(p.name || p.userName)}</h1>
+                        <span class="badge ${p.userType === 'ABROAD' ? 'badge-abroad' : 'badge-aspiring'}">
+                            ${p.userType === 'ABROAD' ? '✈️ Living Abroad' : '🎯 Aspiring Abroad'}
+                        </span>
+                    </div>
+                    <div style="font-size: 1rem; color: var(--text-muted); font-weight: 500; margin-top: 0.25rem;">
+                        ${escapeHtml(p.profession || 'Community Member')} ${p.experienceYears ? '• ' + p.experienceYears + ' yrs exp' : ''}
+                    </div>
+                    <div style="font-size: 0.88rem; color: var(--text-light); margin-top: 0.35rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <span>📍 ${escapeHtml(p.currentCity || '')} ${p.currentCountry ? '(' + escapeHtml(p.currentCountry) + ')' : ''}</span>
+                        <span>🎓 ${escapeHtml(p.collegeName || 'College not set')}</span>
+                    </div>
+                </div>
+
+                <!-- Profile Functional Tabs Header -->
+                <div class="profile-tabs-header">
+                    <button class="profile-tab-btn active" id="profTabBtn-posts" onclick="switchProfileTab('posts', ${pUserId})">📝 Posts</button>
+                    <button class="profile-tab-btn" id="profTabBtn-about" onclick="switchProfileTab('about', ${pUserId})">👤 About</button>
+                    <button class="profile-tab-btn" id="profTabBtn-connections" onclick="switchProfileTab('connections', ${pUserId})">🤝 Connections</button>
+                    <button class="profile-tab-btn" id="profTabBtn-jobs" onclick="switchProfileTab('jobs', ${pUserId})">💼 Jobs</button>
+                </div>
+
+                <!-- Tab 1: Posts (Default Active) -->
+                <div id="profTabSec-posts">
+                    <!-- Posts timeline content is in userPostsTimelineContainer below -->
+                </div>
+
+                <!-- Tab 2: About Section -->
+                <div id="profTabSec-about" style="display: none;">
+                    ${p.bio ? `
+                        <div style="background: var(--bg-subtle); padding: 1rem 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; border-left: 4px solid var(--primary);">
+                            <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 0.35rem;">Bio & Summary</div>
+                            <p style="margin: 0; font-size: 0.95rem; color: var(--text-main); line-height: 1.6;">${escapeHtml(p.bio)}</p>
+                        </div>
+                    ` : ''}
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem;">
+                        <div style="border: 1px solid var(--border-color); padding: 1.25rem; border-radius: var(--radius-md); background: var(--bg-surface);">
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.85rem;">🎓 Education & Background</h3>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.88rem; color: var(--text-muted);">
+                                <div><strong>College:</strong> ${escapeHtml(p.collegeName || 'N/A')}</div>
+                                <div><strong>Degree:</strong> ${escapeHtml(p.degree || 'N/A')}</div>
+                                <div><strong>Graduation Year:</strong> ${p.graduationYear || 'N/A'}</div>
+                                <div><strong>Hometown:</strong> ${escapeHtml(p.hometown || 'N/A')}</div>
+                            </div>
+                        </div>
+
+                        <div style="border: 1px solid var(--border-color); padding: 1.25rem; border-radius: var(--radius-md); background: var(--bg-surface);">
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.85rem;">✈️ Abroad Journey</h3>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.88rem; color: var(--text-muted);">
+                                ${p.userType === 'ASPIRING' ? `
+                                    <div><strong>Target Destination:</strong> ${escapeHtml(p.targetCity || '')} ${p.targetCountry ? '(' + escapeHtml(p.targetCountry) + ')' : 'N/A'}</div>
+                                    <div><strong>Target University:</strong> ${escapeHtml(p.targetUniversity || 'N/A')}</div>
+                                ` : `
+                                    <div><strong>Current Residence:</strong> ${escapeHtml(p.currentCity || '')} ${p.currentCountry ? '(' + escapeHtml(p.currentCountry) + ')' : 'N/A'}</div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+
+                    ${p.skills ? `
+                        <div style="margin-top: 1.25rem; border: 1px solid var(--border-color); padding: 1.25rem; border-radius: var(--radius-md); background: var(--bg-surface);">
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.65rem;">💡 Key Skills</h3>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                ${p.skills.split(',').map(s => `<span class="match-chip" style="font-size:0.82rem; padding: 0.35rem 0.75rem;">${escapeHtml(s.trim())}</span>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <!-- Tab 3: Connections Section -->
+                <div id="profTabSec-connections" style="display: none;">
+                    <div id="profileConnectionsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+
+                <!-- Tab 4: Jobs Section -->
+                <div id="profTabSec-jobs" style="display: none;">
+                    <div id="profileJobsContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    `;
+}
+
+async function fetchUserPostsTimeline(userId) {
+    const container = document.getElementById('userPostsTimelineContainer');
+    if (!container) return;
+
+    container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading posts...</div>`;
+
+    try {
+        const response = await authenticatedFetch(`/api/profiles/${userId}/posts?page=0&size=10`);
+
+        if (response.ok) {
+            const pageData = await response.json();
+            if (!pageData.content || pageData.content.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md); color: var(--text-muted); font-size: 0.9rem;">
+                        No posts created yet by this user.
+                    </div>
+                `;
+            } else {
+                container.innerHTML = pageData.content.map(post => renderPostCardHtml(post)).join('');
+            }
+        } else {
+            container.innerHTML = `<div style="text-align: center; color: var(--danger-text); padding: 1rem;">Failed to load posts.</div>`;
+        }
+    } catch (err) {
+        container.innerHTML = `<div style="text-align: center; color: var(--danger-text); padding: 1rem;">Error loading posts.</div>`;
+    }
+}
+
+function switchProfileTab(tabName, userId) {
+    const tabs = document.querySelectorAll('.profile-tab-btn');
+    tabs.forEach(t => t.classList.remove('active'));
+
+    const activeTabBtn = document.getElementById(`profTabBtn-${tabName}`);
+    if (activeTabBtn) activeTabBtn.classList.add('active');
+
+    const secPosts = document.getElementById('profTabSec-posts');
+    const userPostsHeading = document.getElementById('userPostsHeading');
+    const userPostsTimelineContainer = document.getElementById('userPostsTimelineContainer');
+    const secAbout = document.getElementById('profTabSec-about');
+    const secConnections = document.getElementById('profTabSec-connections');
+    const secJobs = document.getElementById('profTabSec-jobs');
+
+    if (secPosts) secPosts.style.display = (tabName === 'posts') ? 'block' : 'none';
+    if (userPostsHeading) userPostsHeading.style.display = (tabName === 'posts') ? 'block' : 'none';
+    if (userPostsTimelineContainer) userPostsTimelineContainer.style.display = (tabName === 'posts') ? 'flex' : 'none';
+    if (secAbout) secAbout.style.display = (tabName === 'about') ? 'block' : 'none';
+    if (secConnections) secConnections.style.display = (tabName === 'connections') ? 'block' : 'none';
+    if (secJobs) secJobs.style.display = (tabName === 'jobs') ? 'block' : 'none';
+
+    if (tabName === 'posts') {
+        fetchUserPostsTimeline(userId);
+    } else if (tabName === 'connections') {
+        fetchProfileConnectionsTab(userId);
+    } else if (tabName === 'jobs') {
+        fetchProfileJobsTab(userId);
+    }
+}
+
+async function fetchProfileConnectionsTab(userId) {
+    const container = document.getElementById('profileConnectionsContainer');
+    if (!container) return;
+
+    container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted); grid-column: 1 / -1;">Loading connections...</div>`;
+
+    try {
+        const isOwn = currentUser && currentUser.id === userId;
+        const url = isOwn ? '/api/connections' : `/api/profiles/search?size=12`;
+        const res = await authenticatedFetch(url);
+
+        if (res.ok) {
+            const data = await res.json();
+            const list = isOwn ? data : (data.content || []);
+
+            if (list.length === 0) {
+                container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted); grid-column: 1 / -1;">No connections to show.</div>`;
+            } else {
+                container.innerHTML = list.map(item => {
+                    const u = item.connectedUser ? item.connectedUser : item;
+                    const uId = u.userId || u.id;
+                    return `
+                        <div style="background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem 1rem; display:flex; align-items:center; gap:0.75rem; cursor:pointer;" onclick="viewUserProfileByPublicId(${uId})">
+                            <div class="avatar-circle" style="width:40px; height:40px;">
+                                ${u.profilePhoto ? `<img src="${escapeHtml(u.profilePhoto)}" alt="Avatar">` : getInitials(u.name)}
+                            </div>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:600; font-size:0.9rem; color:var(--text-main);">${escapeHtml(u.name)}</div>
+                                <div style="font-size:0.78rem; color:var(--text-muted);">${escapeHtml(u.profession || 'Community Member')}</div>
+                            </div>
+                            <button class="btn-secondary" style="font-size:0.78rem; padding:0.3rem 0.6rem;" onclick="event.stopPropagation(); viewUserProfileByPublicId(${uId})">View</button>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (err) {
+        container.innerHTML = `<div style="text-align:center; color:var(--danger-text); padding:1rem; grid-column: 1 / -1;">Error loading connections.</div>`;
+    }
+}
+
+async function fetchProfileJobsTab(userId) {
+    const container = document.getElementById('profileJobsContainer');
+    if (!container) return;
+
+    container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading posted jobs...</div>`;
+
+    try {
+        const isOwn = currentUser && currentUser.id === userId;
+        const url = isOwn ? '/api/jobs/my' : `/api/jobs/user/${userId}`;
+        const res = await authenticatedFetch(url);
+
+        if (res.ok) {
+            const pageData = await res.json();
+            const items = pageData.content || [];
+
+            if (items.length === 0) {
+                container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted);">No jobs posted by this user yet.</div>`;
+            } else {
+                container.innerHTML = items.map(job => renderJobCardHtml(job)).join('');
+            }
+        }
+    } catch (err) {
+        container.innerHTML = `<div style="text-align:center; color:var(--danger-text); padding:1rem;">Error loading jobs.</div>`;
+    }
+}
+
+function openEditProfileModal() {
+    const modal = document.getElementById('editProfileModal');
+    if (!modal) return;
+
+    if (currentProfile) {
+        const p = currentProfile;
+        if (document.getElementById('profName')) document.getElementById('profName').value = p.userName || p.name || '';
+        if (document.getElementById('profPhoto')) document.getElementById('profPhoto').value = p.profilePhoto || '';
+        if (document.getElementById('profBio')) document.getElementById('profBio').value = p.bio || '';
+        if (document.getElementById('profCollegeName')) document.getElementById('profCollegeName').value = p.collegeName || '';
+        if (document.getElementById('profCollegeCity')) document.getElementById('profCollegeCity').value = p.collegeCity || '';
+        if (document.getElementById('profCollegeCountry')) document.getElementById('profCollegeCountry').value = p.collegeCountry || '';
+        if (document.getElementById('profDegree')) document.getElementById('profDegree').value = p.degree || '';
+        if (document.getElementById('profGraduationYear')) document.getElementById('profGraduationYear').value = p.graduationYear || '';
+        if (document.getElementById('profHometown')) document.getElementById('profHometown').value = p.hometown || '';
+        if (document.getElementById('profCurrentCountry')) document.getElementById('profCurrentCountry').value = p.currentCountry || '';
+        if (document.getElementById('profCurrentCity')) document.getElementById('profCurrentCity').value = p.currentCity || '';
+        if (document.getElementById('profTargetCountry')) document.getElementById('profTargetCountry').value = p.targetCountry || '';
+        if (document.getElementById('profTargetCity')) document.getElementById('profTargetCity').value = p.targetCity || '';
+        if (document.getElementById('profTargetUniversity')) document.getElementById('profTargetUniversity').value = p.targetUniversity || '';
+        if (document.getElementById('profProfession')) document.getElementById('profProfession').value = p.profession || '';
+        if (document.getElementById('profExperienceYears')) document.getElementById('profExperienceYears').value = p.experienceYears || '';
+        if (document.getElementById('profSkills')) document.getElementById('profSkills').value = p.skills || '';
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeEditProfileModal() {
+    const modal = document.getElementById('editProfileModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function initEditProfileForm() {
+    const form = document.getElementById('editProfileForm');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('profName')?.value.trim();
+        const photo = document.getElementById('profPhoto')?.value.trim();
+        const bio = document.getElementById('profBio')?.value.trim();
+        const collegeName = document.getElementById('profCollegeName')?.value.trim();
+        const degree = document.getElementById('profDegree')?.value.trim();
+        const gradYear = document.getElementById('profGraduationYear')?.value;
+        const hometown = document.getElementById('profHometown')?.value.trim();
+        const currentCountry = document.getElementById('profCurrentCountry')?.value;
+        const currentCity = document.getElementById('profCurrentCity')?.value.trim();
+        const targetCountry = document.getElementById('profTargetCountry')?.value;
+        const targetCity = document.getElementById('profTargetCity')?.value.trim();
+        const targetUniversity = document.getElementById('profTargetUniversity')?.value.trim();
+        const profession = document.getElementById('profProfession')?.value.trim();
+        const experienceYears = document.getElementById('profExperienceYears')?.value;
+        const skills = document.getElementById('profSkills')?.value.trim();
+
+        const payload = {
+            name: name || undefined,
+            profilePhoto: photo || undefined,
+            bio: bio || undefined,
+            collegeName: collegeName || undefined,
+            degree: degree || undefined,
+            graduationYear: gradYear ? parseInt(gradYear) : undefined,
+            hometown: hometown || undefined,
+            currentCountry: currentCountry || undefined,
+            currentCity: currentCity || undefined,
+            targetCountry: targetCountry || undefined,
+            targetCity: targetCity || undefined,
+            targetUniversity: targetUniversity || undefined,
+            profession: profession || undefined,
+            experienceYears: experienceYears ? parseInt(experienceYears) : undefined,
+            skills: skills || undefined
+        };
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const response = await authenticatedFetch('/api/profiles/me', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const updatedProfile = await response.json();
+                currentProfile = updatedProfile;
+                showToast("Profile updated successfully!", "success");
+                closeEditProfileModal();
+                await fetchMyUserData();
+
+                if (window.location.pathname.includes('/profile.html')) {
+                    initStandaloneProfilePage();
+                } else if (currentView === 'profile') {
+                    const container = document.getElementById('view-profile') || document.getElementById('profilePageContent');
+                    if (container) renderProfilePageDetails(container, currentProfile);
                 }
+            } else {
+                const errData = await response.json();
+                showToast(errData.message || "Failed to update profile.", "error");
+            }
+        } catch (err) {
+            console.error("Update profile submit error:", err);
+            showToast("Error updating profile.", "error");
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
+}
+
+/**
+ * ==========================================================================
+ * Real PostgreSQL Social Feed Engine
+ * ==========================================================================
+ */
+
+async function fetchFeedPosts(page = 0) {
+    feedCurrentPage = page;
+    const feedContainer = document.getElementById('feedPostsContainer');
+    if (!feedContainer) return;
+
+    feedContainer.innerHTML = `
+        <div class="post-card" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            Loading updates from your abroad network...
+        </div>
+    `;
+
+    try {
+        const response = await authenticatedFetch(`/api/posts/feed?page=${page}&size=10`);
+
+        if (response.ok) {
+            const pageData = await response.json();
+            if (!pageData.content || pageData.content.length === 0) {
+                renderEmptyFeedState(feedContainer);
+            } else {
+                feedContainer.innerHTML = pageData.content.map(post => renderPostCardHtml(post)).join('');
+            }
+        } else {
+            renderErrorFeedState(feedContainer);
+        }
+    } catch (err) {
+        console.error("Feed fetch error:", err);
+        renderErrorFeedState(feedContainer);
+    }
+}
+
+function renderEmptyFeedState(container) {
+    container.innerHTML = `
+        <div class="post-card" style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📰</div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">Your feed is empty</h3>
+            <p style="font-size: 0.88rem; color: var(--text-muted); max-width: 400px; margin: 0.35rem auto 1.25rem auto;">
+                Connect with fellow alumni and professionals to see updates, housing posts, and abroad experiences in your feed!
+            </p>
+            <button class="btn-primary" onclick="switchView('people')">🔍 Discover People</button>
+        </div>
+    `;
+}
+
+function renderErrorFeedState(container) {
+    container.innerHTML = `
+        <div class="post-card" style="text-align: center; padding: 2rem; color: var(--danger-text);">
+            Unable to load feed. Check server connection.
+        </div>
+    `;
+}
+
+function renderPostCardHtml(post) {
+    const author = post.author || {};
+    const isLiked = post.likedByCurrentUser;
+    const typeLabel = getPostTypeBadgeLabel(post.postType);
+    const isJobPost = post.postType === 'JOB';
+
+    return `
+        <div class="post-card ${isJobPost ? 'feed-job-card' : ''}" id="post-${post.id}">
+            <div class="post-header">
+                <div class="post-author-info">
+                    <div class="avatar-circle" onclick="viewUserProfileByPublicId(${author.userId})" style="cursor:pointer;">
+                        ${author.profilePhoto ? `<img src="${escapeHtml(author.profilePhoto)}" alt="Avatar">` : getInitials(author.name)}
+                    </div>
+                    <div class="author-details">
+                        <div class="author-name" onclick="viewUserProfileByPublicId(${author.userId})" style="cursor:pointer;">
+                            ${escapeHtml(author.name)} ${isJobPost ? 'shared a job opportunity' : ''}
+                        </div>
+                        <div class="author-title">${escapeHtml(author.profession || 'Community Member')} ${author.currentCity ? '• ' + escapeHtml(author.currentCity) : ''}</div>
+                        <div class="post-meta">
+                            <span class="post-time">${formatTimeAgo(post.createdAt)}</span>
+                            ${author.currentCountry ? `<span class="post-location">📍 ${escapeHtml(author.currentCountry)}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="badge ${isJobPost ? 'badge-abroad' : 'badge-aspiring'}">${isJobPost ? '💼 Job Opportunity' : typeLabel}</span>
+                    ${post.isMine ? `
+                        <button class="btn-cancel" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;" onclick="handleDeletePost(${post.id})">🗑️ Delete</button>
+                    ` : ''}
+                </div>
+            </div>
+
+            <div class="post-content">
+                ${escapeHtml(post.content)}
+            </div>
+
+            ${isJobPost ? `
+                <div style="margin-top: 0.75rem; padding: 0.85rem; background: var(--primary-light); border: 1px solid var(--primary-border); border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 700; color: var(--primary); font-size: 0.95rem;">💼 Career & Opportunity Hub</div>
+                        <div style="font-size: 0.82rem; color: var(--text-muted);">Explore open positions or post a role for fellow expats.</div>
+                    </div>
+                    <button class="btn-primary" style="font-size: 0.82rem; padding: 0.4rem 0.85rem;" onclick="window.location.href='/jobs.html'">View Opportunities</button>
+                </div>
+            ` : ''}
+
+            ${post.imageUrl ? `
+                <div style="margin-top: 0.5rem; border-radius: var(--radius-md); overflow: hidden; max-height: 380px;">
+                    <img src="${escapeHtml(post.imageUrl)}" alt="Post Media" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+            ` : ''}
+
+            <div class="post-footer">
+                <button class="action-btn ${isLiked ? 'liked' : ''}" id="like-btn-${post.id}" onclick="handleToggleLike(${post.id})">
+                    ${isLiked ? '❤️' : '🤍'} <span id="like-count-${post.id}">${post.likeCount} Likes</span>
+                </button>
+                <button class="action-btn" onclick="toggleCommentsBox(${post.id})">
+                    💬 <span id="comment-count-${post.id}">${post.commentCount} Comments</span>
+                </button>
+                <button class="action-btn" onclick="showToast('Post link copied to clipboard!', 'info')">
+                    ↗ Share
+                </button>
+            </div>
+
+            <!-- Comments Expandable Drawer -->
+            <div id="comments-box-${post.id}" style="display: none; border-top: 1px solid var(--border-color); padding-top: 0.85rem; margin-top: 0.5rem;">
+                <div id="comments-list-${post.id}" style="display: flex; flex-direction: column; gap: 0.65rem; margin-bottom: 0.85rem;">
+                    <!-- Loaded dynamically -->
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="comment-input-${post.id}" class="form-control" style="flex:1; font-size: 0.85rem; padding: 0.45rem 0.75rem;" placeholder="Write a comment..." onkeydown="if(event.key==='Enter') handleAddComment(${post.id})">
+                    <button class="btn-primary" style="font-size: 0.8rem; padding: 0.45rem 0.85rem;" onclick="handleAddComment(${post.id})">Comment</button>
+                </div>
+            </div>
+
+        </div>
+    `;
+}
+
+function getPostTypeBadgeLabel(postType) {
+    switch (postType) {
+        case 'ABROAD_EXPERIENCE': return '✈️ Experience';
+        case 'QUESTION': return '❓ Question';
+        case 'ADVICE': return '💡 Advice';
+        case 'JOB': return '💼 Job';
+        case 'HOUSING': return '🏠 Housing';
+        case 'EVENT': return '📅 Event';
+        default: return '📢 Update';
+    }
+}
+
+function initComposer() {
+    const submitPostBtn = document.getElementById('submitPostBtn');
+    const composerTextarea = document.getElementById('composerTextarea');
+    const typeSelect = document.getElementById('composerPostTypeSelect');
+    const imageInput = document.getElementById('composerImageUrlInput');
+
+    if (submitPostBtn && composerTextarea) {
+        submitPostBtn.addEventListener('click', async () => {
+            const text = composerTextarea.value.trim();
+            if (!text) {
+                showToast("Post content cannot be empty", 'error');
+                return;
+            }
+
+            const postType = typeSelect ? typeSelect.value : 'GENERAL';
+            const imageUrl = imageInput ? imageInput.value.trim() : null;
+
+            submitPostBtn.disabled = true;
+
+            try {
+                const response = await authenticatedFetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: text, postType: postType, imageUrl: imageUrl })
+                });
+
+                if (response.ok) {
+                    showToast("Post published successfully!", 'success');
+                    composerTextarea.value = '';
+                    if (imageInput) imageInput.value = '';
+                    fetchFeedPosts(0);
+                } else {
+                    const errData = await response.json();
+                    showToast(errData.message || "Failed to publish post.", 'error');
+                }
+            } catch (err) {
+                console.error("Create post error:", err);
+                showToast("Error publishing post.", 'error');
+            } finally {
+                submitPostBtn.disabled = false;
             }
         });
     }
 }
 
-/**
- * View Router Switcher
- */
-function switchView(viewName) {
-    currentView = viewName;
-    const views = document.querySelectorAll('.page-view');
-    views.forEach(v => v.classList.remove('active'));
+async function handleToggleLike(postId) {
+    const likeBtn = document.getElementById(`like-btn-${postId}`);
+    const countElem = document.getElementById(`like-count-${postId}`);
+    if (!likeBtn || !countElem) return;
 
-    const targetView = document.getElementById(`view-${viewName}`);
-    if (targetView) {
-        targetView.classList.add('active');
-    }
+    const isLiked = likeBtn.classList.contains('liked');
+    const method = isLiked ? 'DELETE' : 'POST';
 
-    if (viewName === 'profile') {
-        renderUserProfile(currentProfile);
-    } else if (viewName === 'people') {
-        fetchPeopleDirectory(peopleCurrentPage);
-        fetchSameCollegeSection();
-        fetchDestinationSection();
-    } else if (viewName === 'connections') {
-        switchConnectionsTab('received');
+    try {
+        const response = await authenticatedFetch(`/api/posts/${postId}/like`, { method: method });
+
+        if (response.ok) {
+            let currentCount = parseInt(countElem.innerText) || 0;
+            if (isLiked) {
+                likeBtn.classList.remove('liked');
+                likeBtn.innerHTML = `🤍 <span id="like-count-${postId}">${Math.max(0, currentCount - 1)} Likes</span>`;
+            } else {
+                likeBtn.classList.add('liked');
+                likeBtn.innerHTML = `❤️ <span id="like-count-${postId}">${currentCount + 1} Likes</span>`;
+            }
+        }
+    } catch (err) {
+        console.error("Toggle like error:", err);
     }
 }
 
+async function toggleCommentsBox(postId) {
+    const box = document.getElementById(`comments-box-${postId}`);
+    if (!box) return;
+
+    if (box.style.display === 'none' || !box.style.display) {
+        box.style.display = 'block';
+        loadPostComments(postId);
+    } else {
+        box.style.display = 'none';
+    }
+}
+
+async function loadPostComments(postId) {
+    const listContainer = document.getElementById(`comments-list-${postId}`);
+    if (!listContainer) return;
+
+    listContainer.innerHTML = `<div style="font-size:0.8rem; color:var(--text-muted);">Loading comments...</div>`;
+
+    try {
+        const response = await authenticatedFetch(`/api/posts/${postId}/comments?page=0&size=20`);
+
+        if (response.ok) {
+            const pageData = await response.json();
+            if (!pageData.content || pageData.content.length === 0) {
+                listContainer.innerHTML = `<div style="font-size:0.8rem; color:var(--text-muted);">No comments yet. Be the first to comment!</div>`;
+            } else {
+                listContainer.innerHTML = pageData.content.map(c => renderCommentHtml(c)).join('');
+            }
+        }
+    } catch (err) {
+        listContainer.innerHTML = `<div style="font-size:0.8rem; color:var(--danger-text);">Error loading comments.</div>`;
+    }
+}
+
+function renderCommentHtml(c) {
+    const author = c.author || {};
+    return `
+        <div style="background: var(--bg-subtle); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <strong style="color: var(--text-main); cursor: pointer;" onclick="viewUserProfileByPublicId(${author.userId})">${escapeHtml(author.name)}:</strong>
+                <span style="color: var(--text-main); margin-left: 0.25rem;">${escapeHtml(c.content)}</span>
+            </div>
+            ${c.isMine ? `
+                <button style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem;" title="Delete Comment" onclick="handleDeleteComment(${c.postId}, ${c.id})">✕</button>
+            ` : ''}
+        </div>
+    `;
+}
+
+async function handleAddComment(postId) {
+    const input = document.getElementById(`comment-input-${postId}`);
+    if (!input) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+
+    try {
+        const response = await authenticatedFetch(`/api/posts/${postId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: text })
+        });
+
+        if (response.ok) {
+            loadPostComments(postId);
+            const countElem = document.getElementById(`comment-count-${postId}`);
+            if (countElem) {
+                let cnt = parseInt(countElem.innerText) || 0;
+                countElem.innerText = `${cnt + 1} Comments`;
+            }
+        }
+    } catch (err) {
+        console.error("Add comment error:", err);
+    }
+}
+
+async function handleDeleteComment(postId, commentId) {
+    try {
+        const response = await authenticatedFetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+        if (response.ok) {
+            loadPostComments(postId);
+        }
+    } catch (err) {}
+}
+
+async function handleDeletePost(postId) {
+    if (!confirm("Are you sure you want to delete this post?")) return;
+
+    try {
+        const response = await authenticatedFetch(`/api/posts/${postId}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast("Post deleted.", 'info');
+            fetchFeedPosts(feedCurrentPage);
+        }
+    } catch (err) {}
+}
+
 /**
- * Phase 3: Fetch Real People Directory from GET /api/profiles
+ * ==========================================================================
+ * Real People Directory & Profile Search Engine
+ * ==========================================================================
  */
 async function fetchPeopleDirectory(page = 0) {
-    const container = document.getElementById('peopleDirectoryContainer');
-    if (!container) return;
-
     peopleCurrentPage = page;
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
     renderPeopleLoadingState();
 
+    const keyword = document.getElementById('searchKeywordInput')?.value || '';
+    const college = document.getElementById('filterCollegeInput')?.value || '';
+    const country = document.getElementById('filterCountrySelect')?.value || '';
+    const city = document.getElementById('filterCityInput')?.value || '';
+    const profession = document.getElementById('filterProfessionInput')?.value || '';
+    const userType = document.getElementById('filterUserTypeSelect')?.value || '';
+
     const params = new URLSearchParams();
-    params.append('page', peopleCurrentPage);
-    params.append('size', peoplePageSize);
-
-    const keyword = document.getElementById('searchKeywordInput')?.value.trim();
-    const college = document.getElementById('filterCollegeInput')?.value.trim();
-    const country = document.getElementById('filterCountrySelect')?.value;
-    const city = document.getElementById('filterCityInput')?.value.trim();
-    const profession = document.getElementById('filterProfessionInput')?.value.trim();
-    const userType = document.getElementById('filterUserTypeSelect')?.value;
-
+    params.append('page', page);
+    params.append('size', 6);
     if (keyword) params.append('keyword', keyword);
     if (college) params.append('college', college);
     if (country) params.append('currentCountry', country);
@@ -748,83 +1138,66 @@ async function fetchPeopleDirectory(page = 0) {
     if (userType) params.append('userType', userType);
 
     try {
-        const response = await fetch(`/api/profiles?${params.toString()}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
+        const response = await authenticatedFetch(`/api/profiles/search?${params.toString()}`);
 
         if (response.ok) {
             const pageData = await response.json();
-            peopleTotalPages = pageData.totalPages;
-            if (pageData.content.length === 0) {
+            if (!pageData.content || pageData.content.length === 0) {
                 renderPeopleEmptyState();
             } else {
-                container.innerHTML = pageData.content.map(p => renderPeopleCard(p)).join('');
+                const container = document.getElementById('peopleDirectoryContainer');
+                if (container) {
+                    container.innerHTML = pageData.content.map(p => renderPeopleCard(p)).join('');
+                }
+                renderPeoplePagination(pageData);
             }
-            renderPeoplePagination(pageData);
         } else {
             renderPeopleErrorState();
         }
     } catch (err) {
-        console.error("Fetch people error", err);
         renderPeopleErrorState();
     }
 }
 
-/**
- * Render Profile Card for Discovery Grid
- */
 function renderPeopleCard(profile) {
-    const isAbroad = profile.userType === 'ABROAD';
-    const statusText = isAbroad ? '🟢 Already Abroad' : `✈️ Planning Move (${escapeHtml(profile.targetCountry || 'Abroad')})`;
-    const statusClass = isAbroad ? 'badge-abroad' : 'badge-aspiring';
-
-    const skillsList = profile.skills
-        ? profile.skills.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-
     const matchReasons = profile.matchReasons || [];
 
     return `
-        <div class="user-card" style="text-align: left; display: flex; flex-direction: column; justify-content: space-between;">
-            <div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
-                    <div class="avatar-circle card-avatar" style="background-color: var(--primary);">
-                        ${escapeHtml(profile.profilePhoto || getInitials(profile.name))}
+        <div class="user-card" id="user-card-${profile.userId}">
+            <div class="user-card-header">
+                <div class="user-avatar-container" onclick="viewUserProfileByPublicId(${profile.userId})">
+                    <div class="avatar-circle">
+                        ${profile.profilePhoto ? `<img src="${escapeHtml(profile.profilePhoto)}" alt="Avatar">` : getInitials(profile.name)}
                     </div>
-                    <span class="badge ${statusClass}">${statusText}</span>
                 </div>
 
-                <div class="card-name">${escapeHtml(profile.name)}</div>
-                <div class="card-title">${escapeHtml(profile.profession || 'Community Member')} ${profile.experienceYears ? '• ' + profile.experienceYears + ' yrs exp' : ''}</div>
-                <div class="card-location" style="margin-top: 0.25rem;">
-                    📍 ${escapeHtml(profile.currentCity || '')} ${profile.currentCountry ? '(' + escapeHtml(profile.currentCountry) + ')' : ''}
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">
-                    🎓 ${escapeHtml(profile.collegeName || 'N/A')} ${profile.degree ? '• ' + escapeHtml(profile.degree) : ''}
-                </div>
-
-                <!-- Match Reasons Chips -->
-                ${matchReasons.length > 0 ? `
-                    <div class="match-reasons-box">
-                        ${matchReasons.map(r => `<span class="match-chip">${escapeHtml(r)}</span>`).join('')}
+                <div class="user-card-body">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <span class="badge ${profile.userType === 'ABROAD' ? 'badge-abroad' : 'badge-aspiring'}">
+                            ${profile.userType === 'ABROAD' ? '✈️ Abroad' : '🎯 Aspiring'}
+                        </span>
+                        <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">${profile.connectionCount || 0} Connections</span>
                     </div>
-                ` : ''}
 
-                <!-- Bio Snippet -->
-                <p style="font-size: 0.85rem; color: var(--text-main); margin: 0.65rem 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                    "${escapeHtml(profile.bio || 'Connected member of ConnectAbroad community.')}"
-                </p>
-
-                <!-- Skills -->
-                ${skillsList.length > 0 ? `
-                    <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.75rem;">
-                        ${skillsList.slice(0, 3).map(sk => `<span style="font-size: 0.75rem; background: var(--bg-subtle); padding: 0.15rem 0.45rem; border-radius: var(--radius-sm); color: var(--text-muted);">${escapeHtml(sk)}</span>`).join('')}
+                    <div class="card-name" onclick="viewUserProfileByPublicId(${profile.userId})">${escapeHtml(profile.name)}</div>
+                    <div class="card-title">${escapeHtml(profile.profession || 'Community Member')} ${profile.experienceYears ? '• ' + profile.experienceYears + ' yrs exp' : ''}</div>
+                    <div class="card-location" style="margin-top: 0.25rem;">
+                        📍 ${escapeHtml(profile.currentCity || '')} ${profile.currentCountry ? '(' + escapeHtml(profile.currentCountry) + ')' : ''}
                     </div>
-                ` : ''}
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">
+                        🎓 ${escapeHtml(profile.collegeName || 'N/A')} ${profile.degree ? '• ' + escapeHtml(profile.degree) : ''}
+                    </div>
+
+                    ${matchReasons.length > 0 ? `
+                        <div class="match-reasons-box">
+                            ${matchReasons.map(r => `<span class="match-chip">${escapeHtml(r)}</span>`).join('')}
+                        </div>
+                    ` : ''}
+
+                    <p style="font-size: 0.85rem; color: var(--text-main); margin: 0.65rem 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        "${escapeHtml(profile.bio || 'Connected member of ConnectAbroad community.')}"
+                    </p>
+                </div>
             </div>
 
             <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; margin-top: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
@@ -839,26 +1212,52 @@ function renderPeopleCard(profile) {
     `;
 }
 
-/**
- * Curated Section 1: People From Your College
- */
+function renderConnectionActionButton(profile) {
+    if (!currentUser) return '';
+    if (currentUser.id === profile.userId) {
+        return '<span style="font-size:0.8rem; color:var(--text-muted); font-weight:500;">👤 You</span>';
+    }
+
+    const status = profile.connectionStatus || 'NONE';
+    const connId = profile.connectionId;
+
+    if (status === 'CONNECTED') {
+        return `
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <button class="btn-primary" style="font-size:0.8rem; padding: 0.35rem 0.75rem;" onclick="openChatWithUser(event, ${profile.userId})">💬 Message</button>
+                <button class="btn-remove" title="Remove Connection" onclick="handleRemoveConnection(event, ${connId}, ${profile.userId})">Remove</button>
+            </div>
+        `;
+    } else if (status === 'PENDING_SENT') {
+        return `
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="btn-pending">⏳ Request Sent</span>
+                <button class="btn-cancel" title="Cancel Request" onclick="handleCancelConnectionRequest(event, ${connId}, ${profile.userId})">Cancel</button>
+            </div>
+        `;
+    } else if (status === 'PENDING_RECEIVED') {
+        return `
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <button class="btn-accept" onclick="handleAcceptConnectionRequest(event, ${connId}, ${profile.userId})">✓ Accept</button>
+                <button class="btn-reject" onclick="handleRejectConnectionRequest(event, ${connId}, ${profile.userId})">✗ Reject</button>
+            </div>
+        `;
+    } else {
+        return `
+            <button class="btn-connect" onclick="handleSendConnectionRequest(event, ${profile.userId})">
+                + Connect
+            </button>
+        `;
+    }
+}
+
 async function fetchSameCollegeSection() {
     const container = document.getElementById('sameCollegeGrid');
     const wrapper = document.getElementById('sameCollegeSectionContainer');
     if (!container || !wrapper) return;
 
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
     try {
-        const response = await fetch('/api/profiles/sections/college?size=3', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await authenticatedFetch('/api/profiles/sections/college?size=3');
         if (response.ok) {
             const pageData = await response.json();
             if (pageData.content && pageData.content.length > 0) {
@@ -867,42 +1266,22 @@ async function fetchSameCollegeSection() {
             } else {
                 wrapper.style.display = 'none';
             }
-        } else {
-            wrapper.style.display = 'none';
         }
-    } catch (err) {
+    } catch (e) {
         wrapper.style.display = 'none';
     }
 }
 
-/**
- * Curated Section 2: Destination & Journey Network
- */
 async function fetchDestinationSection() {
     const container = document.getElementById('destinationGrid');
     const wrapper = document.getElementById('destinationSectionContainer');
-    const titleElem = document.getElementById('destinationSectionTitle');
     if (!container || !wrapper) return;
-
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
 
     const isAspiring = currentUser && currentUser.userType === 'ASPIRING';
     const endpoint = isAspiring ? '/api/profiles/sections/destination?size=3' : '/api/profiles/sections/near-you?size=3';
 
-    if (titleElem) {
-        titleElem.innerText = isAspiring ? '✈️ People Already In Your Destination' : '📍 People Near You';
-    }
-
     try {
-        const response = await fetch(endpoint, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await authenticatedFetch(endpoint);
         if (response.ok) {
             const pageData = await response.json();
             if (pageData.content && pageData.content.length > 0) {
@@ -911,17 +1290,77 @@ async function fetchDestinationSection() {
             } else {
                 wrapper.style.display = 'none';
             }
-        } else {
-            wrapper.style.display = 'none';
         }
-    } catch (err) {
+    } catch (e) {
         wrapper.style.display = 'none';
     }
 }
 
-/**
- * Pagination Controls Rendering
- */
+function handleFilterChange() {
+    if (filterDebounceTimeout) clearTimeout(filterDebounceTimeout);
+    filterDebounceTimeout = setTimeout(() => {
+        fetchPeopleDirectory(0);
+    }, 300);
+}
+
+function resetPeopleFilters() {
+    if (document.getElementById('searchKeywordInput')) document.getElementById('searchKeywordInput').value = '';
+    if (document.getElementById('filterCollegeInput')) document.getElementById('filterCollegeInput').value = '';
+    if (document.getElementById('filterCountrySelect')) document.getElementById('filterCountrySelect').value = '';
+    if (document.getElementById('filterCityInput')) document.getElementById('filterCityInput').value = '';
+    if (document.getElementById('filterProfessionInput')) document.getElementById('filterProfessionInput').value = '';
+    if (document.getElementById('filterUserTypeSelect')) document.getElementById('filterUserTypeSelect').value = '';
+
+    fetchPeopleDirectory(0);
+}
+
+function renderPeopleLoadingState() {
+    const container = document.getElementById('peopleDirectoryContainer');
+    if (!container) return;
+
+    container.innerHTML = Array(3).fill(0).map(() => `
+        <div class="skeleton-card">
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: #e2e8f0;"></div>
+                <div style="flex: 1;">
+                    <div style="height: 16px; width: 60%; background: #e2e8f0; border-radius: 4px; margin-bottom: 6px;"></div>
+                    <div style="height: 12px; width: 40%; background: #e2e8f0; border-radius: 4px;"></div>
+                </div>
+            </div>
+            <div style="height: 12px; width: 90%; background: #e2e8f0; border-radius: 4px;"></div>
+        </div>
+    `).join('');
+}
+
+function renderPeopleEmptyState() {
+    const container = document.getElementById('peopleDirectoryContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1.5rem; background: #ffffff; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+            <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">No people found</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 450px; margin: 0 auto 1.25rem auto;">
+                Try changing your search filters to discover other community members.
+            </p>
+            <button class="btn-secondary" onclick="resetPeopleFilters()">↺ Clear Filters</button>
+        </div>
+    `;
+}
+
+function renderPeopleErrorState() {
+    const container = document.getElementById('peopleDirectoryContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1.5rem; background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">⚠️</div>
+            <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Unable to load directory right now</h3>
+            <button class="btn-primary" onclick="fetchPeopleDirectory(0)">↺ Retry</button>
+        </div>
+    `;
+}
+
 function renderPeoplePagination(pageData) {
     const container = document.getElementById('peoplePaginationContainer');
     if (!container) return;
@@ -944,122 +1383,14 @@ function renderPeoplePagination(pageData) {
     `;
 }
 
-function renderPeopleLoadingState() {
-    const container = document.getElementById('peopleDirectoryContainer');
-    if (!container) return;
-
-    container.innerHTML = Array(6).fill(0).map(() => `
-        <div class="skeleton-card">
-            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
-                <div style="width: 50px; height: 50px; border-radius: 50%; background: #e2e8f0;"></div>
-                <div style="flex: 1;">
-                    <div style="height: 16px; width: 60%; background: #e2e8f0; border-radius: 4px; margin-bottom: 6px;"></div>
-                    <div style="height: 12px; width: 40%; background: #e2e8f0; border-radius: 4px;"></div>
-                </div>
-            </div>
-            <div style="height: 12px; width: 90%; background: #e2e8f0; border-radius: 4px; margin-bottom: 6px;"></div>
-            <div style="height: 12px; width: 75%; background: #e2e8f0; border-radius: 4px;"></div>
-        </div>
-    `).join('');
-}
-
-function renderPeopleEmptyState() {
-    const container = document.getElementById('peopleDirectoryContainer');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1.5rem; background: #ffffff; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
-            <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">No people found</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 450px; margin: 0 auto 1.25rem auto;">
-                Try changing your college, city, country, or profession filters to discover other community members.
-            </p>
-            <button class="btn-secondary" onclick="resetPeopleFilters()">↺ Clear Filters</button>
-        </div>
-    `;
-}
-
-function renderPeopleErrorState() {
-    const container = document.getElementById('peopleDirectoryContainer');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1.5rem; background: #ffffff; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">⚠️</div>
-            <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">Unable to load people right now</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
-                Please check your network or backend API server status.
-            </p>
-            <button class="btn-primary" onclick="fetchPeopleDirectory(0)">↺ Retry</button>
-        </div>
-    `;
-}
-
-function handleFilterChange() {
-    if (filterDebounceTimeout) clearTimeout(filterDebounceTimeout);
-    filterDebounceTimeout = setTimeout(() => {
-        fetchPeopleDirectory(0);
-    }, 300);
-}
-
-function resetPeopleFilters() {
-    if (document.getElementById('searchKeywordInput')) document.getElementById('searchKeywordInput').value = '';
-    if (document.getElementById('filterCollegeInput')) document.getElementById('filterCollegeInput').value = '';
-    if (document.getElementById('filterCountrySelect')) document.getElementById('filterCountrySelect').value = '';
-    if (document.getElementById('filterCityInput')) document.getElementById('filterCityInput').value = '';
-    if (document.getElementById('filterProfessionInput')) document.getElementById('filterProfessionInput').value = '';
-    if (document.getElementById('filterUserTypeSelect')) document.getElementById('filterUserTypeSelect').value = '';
-
-    fetchPeopleDirectory(0);
-}
-
-/**
- * Fetch Public Profile by User ID via GET /api/profiles/{id}
- */
-async function viewUserProfileByPublicId(userId) {
-    if (currentUser && userId === currentUser.id) {
-        switchView('profile');
-        return;
-    }
-
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
-    try {
-        const response = await fetch(`/api/profiles/${userId}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.ok) {
-            const publicProfile = await response.json();
-            renderPublicUserProfilePage(publicProfile);
-        } else {
-            alert("Could not load user profile.");
-        }
-    } catch (err) {
-        console.error("View public profile error", err);
-    }
-}
-
 /**
  * ==========================================================================
- * Phase 4 Connection System Frontend Engine
+ * Connection System Engine
  * ==========================================================================
- */
-
-/**
- * Toast Notifications
  */
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
-    if (!container) {
-        console.log(`[Toast ${type}]: ${message}`);
-        return;
-    }
+    if (!container) return;
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -1080,172 +1411,60 @@ function showToast(message, type = 'info') {
     }, 3500);
 }
 
-/**
- * Notification Badge Counter (GET /api/connections/requests/count)
- */
 async function updateNotificationBadge() {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
     try {
-        const response = await fetch('/api/connections/requests/count', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
+        const response = await authenticatedFetch('/api/connections/requests/count');
         if (response.ok) {
             const data = await response.json();
             const count = data.count || 0;
             const badge = document.getElementById('navNotificationBadge');
             if (badge) {
-                if (count > 0) {
-                    badge.innerText = count;
-                    badge.style.display = 'inline-flex';
-                } else {
-                    badge.innerText = '';
-                    badge.style.display = 'none';
-                }
+                badge.innerText = count > 0 ? count : '';
+                badge.style.display = count > 0 ? 'inline-block' : 'none';
             }
-
-            const statReceived = document.getElementById('statPendingReceived');
-            if (statReceived) statReceived.innerText = count;
         }
-    } catch (err) {
-        console.warn("Could not fetch notification count", err);
-    }
+    } catch (err) {}
 }
 
-/**
- * Universal Connection Action Button Renderer
- */
-function renderConnectionActionButton(profile) {
-    if (!currentUser) return '';
-    if (currentUser.id === profile.userId) {
-        return '<span style="font-size:0.8rem; color:var(--text-muted); font-weight:500;">👤 You</span>';
-    }
-
-    const status = profile.connectionStatus || 'NONE';
-    const connId = profile.connectionId;
-
-    if (status === 'CONNECTED') {
-        return `
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span class="btn-connected">✓ Connected</span>
-                <button class="btn-remove" title="Remove Connection" onclick="handleRemoveConnection(event, ${connId}, ${profile.userId})">Remove</button>
-            </div>
-        `;
-    } else if (status === 'PENDING_SENT') {
-        return `
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span class="btn-pending">⏳ Sent</span>
-                <button class="btn-cancel" title="Cancel Request" onclick="handleCancelConnectionRequest(event, ${connId}, ${profile.userId})">Cancel</button>
-            </div>
-        `;
-    } else if (status === 'PENDING_RECEIVED') {
-        return `
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <button class="btn-accept" onclick="handleAcceptConnectionRequest(event, ${connId}, ${profile.userId})">✓ Accept</button>
-                <button class="btn-reject" onclick="handleRejectConnectionRequest(event, ${connId}, ${profile.userId})">✗ Reject</button>
-            </div>
-        `;
-    } else { // NONE or REJECTED
-        return `
-            <button class="btn-connect" onclick="handleSendConnectionRequest(event, ${profile.userId})">
-                + Connect
-            </button>
-        `;
-    }
-}
-
-/**
- * Send Connection Request (POST /api/connections/request/{userId})
- */
 async function handleSendConnectionRequest(event, targetUserId) {
     if (event) event.stopPropagation();
 
-    const btn = event ? event.currentTarget : null;
-    if (btn) btn.disabled = true;
-
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-        window.location.href = '/login.html';
-        return;
-    }
-
     try {
-        const response = await fetch(`/api/connections/request/${targetUserId}`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await authenticatedFetch(`/api/connections/request/${targetUserId}`, { method: 'POST' });
         const data = await response.json();
         if (response.ok) {
             showToast(data.message || "Connection request sent.", 'success');
             refreshConnectionUI(targetUserId);
         } else {
-            showToast(data.message || "Unable to send connection request.", 'error');
-            if (btn) btn.disabled = false;
+            showToast(data.message || "Unable to send request.", 'error');
         }
     } catch (err) {
-        console.error("Send request error", err);
-        showToast("Error sending connection request.", 'error');
-        if (btn) btn.disabled = false;
+        showToast("Error sending request.", 'error');
     }
 }
 
-/**
- * Accept Connection Request (PUT /api/connections/{connectionId}/accept)
- */
 async function handleAcceptConnectionRequest(event, connectionId, targetUserId) {
     if (event) event.stopPropagation();
 
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
     try {
-        const response = await fetch(`/api/connections/${connectionId}/accept`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await authenticatedFetch(`/api/connections/${connectionId}/accept`, { method: 'PUT' });
         const data = await response.json();
         if (response.ok) {
-            showToast(data.message || "Connection request accepted.", 'success');
+            showToast(data.message || "Connection accepted!", 'success');
             refreshConnectionUI(targetUserId);
         } else {
-            showToast(data.message || "Unable to accept connection request.", 'error');
+            showToast(data.message || "Unable to accept request.", 'error');
         }
     } catch (err) {
-        console.error("Accept request error", err);
-        showToast("Error accepting connection request.", 'error');
+        showToast("Error accepting connection.", 'error');
     }
 }
 
-/**
- * Reject Connection Request (PUT /api/connections/{connectionId}/reject)
- */
 async function handleRejectConnectionRequest(event, connectionId, targetUserId) {
     if (event) event.stopPropagation();
 
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
     try {
-        const response = await fetch(`/api/connections/${connectionId}/reject`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await authenticatedFetch(`/api/connections/${connectionId}/reject`, { method: 'PUT' });
         const data = await response.json();
         if (response.ok) {
             showToast(data.message || "Connection request rejected.", 'info');
@@ -1254,62 +1473,34 @@ async function handleRejectConnectionRequest(event, connectionId, targetUserId) 
             showToast(data.message || "Unable to reject request.", 'error');
         }
     } catch (err) {
-        console.error("Reject request error", err);
         showToast("Error rejecting request.", 'error');
     }
 }
 
-/**
- * Cancel Outgoing Connection Request (DELETE /api/connections/{connectionId}/cancel)
- */
 async function handleCancelConnectionRequest(event, connectionId, targetUserId) {
     if (event) event.stopPropagation();
 
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
     try {
-        const response = await fetch(`/api/connections/${connectionId}/cancel`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await authenticatedFetch(`/api/connections/${connectionId}/cancel`, { method: 'DELETE' });
         const data = await response.json();
         if (response.ok) {
-            showToast(data.message || "Connection request cancelled.", 'info');
+            showToast(data.message || "Request cancelled.", 'info');
             refreshConnectionUI(targetUserId);
         } else {
-            showToast(data.message || "Unable to cancel connection request.", 'error');
+            showToast(data.message || "Unable to cancel request.", 'error');
         }
     } catch (err) {
-        console.error("Cancel request error", err);
         showToast("Error cancelling request.", 'error');
     }
 }
 
-/**
- * Remove Accepted Connection (DELETE /api/connections/{connectionId})
- */
 async function handleRemoveConnection(event, connectionId, targetUserId) {
     if (event) event.stopPropagation();
 
     if (!confirm("Are you sure you want to remove this connection?")) return;
 
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
     try {
-        const response = await fetch(`/api/connections/${connectionId}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await authenticatedFetch(`/api/connections/${connectionId}`, { method: 'DELETE' });
         const data = await response.json();
         if (response.ok) {
             showToast(data.message || "Connection removed.", 'info');
@@ -1318,351 +1509,210 @@ async function handleRemoveConnection(event, connectionId, targetUserId) {
             showToast(data.message || "Unable to remove connection.", 'error');
         }
     } catch (err) {
-        console.error("Remove connection error", err);
         showToast("Error removing connection.", 'error');
     }
 }
 
-/**
- * Refresh UI after connection state change
- */
 function refreshConnectionUI(targetUserId) {
     updateNotificationBadge();
+    fetchMyUserData();
 
-    if (currentView === 'people') {
+    if (window.location.pathname.includes('/profile.html')) {
+        initStandaloneProfilePage();
+    } else if (currentView === 'people') {
         fetchPeopleDirectory(peopleCurrentPage);
-        fetchSameCollegeSection();
-        fetchDestinationSection();
     } else if (currentView === 'connections' || document.getElementById('view-connections-page')) {
         loadConnectionsTabData(activeConnectionsTab);
-    } else if (targetUserId) {
-        viewUserProfileByPublicId(targetUserId);
     }
 }
 
 /**
- * Connections Page Tab Switcher & Data Fetching
+ * Connections Page Controller
  */
 let activeConnectionsTab = 'received';
-
-function switchConnectionsTab(tabName) {
-    activeConnectionsTab = tabName;
-
-    // Update tab button styles
-    ['received', 'sent', 'connected'].forEach(t => {
-        const standaloneBtn = document.getElementById(`btnTab${t.charAt(0).toUpperCase() + t.slice(1)}`);
-        const dashBtn = document.getElementById(`btnDashTab${t.charAt(0).toUpperCase() + t.slice(1)}`);
-        
-        if (standaloneBtn) standaloneBtn.classList.toggle('active', t === tabName);
-        if (dashBtn) dashBtn.classList.toggle('active', t === tabName);
-    });
-
-    loadConnectionsTabData(tabName);
-}
-
-async function loadConnectionsTabData(tabName) {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) return;
-
-    const container = document.getElementById('connectionsContainer') || document.getElementById('dashConnectionsContainer');
-    if (!container) return;
-
-    container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading connections...</div>`;
-
-    if (tabName === 'received') {
-        try {
-            const res = await fetch('/api/connections/requests/received', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const list = await res.json();
-                updateTabBadgeCounts(list.length, null, null);
-                renderReceivedRequestsList(container, list);
-            }
-        } catch (e) {
-            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger-text);">Error loading requests.</div>`;
-        }
-    } else if (tabName === 'sent') {
-        try {
-            const res = await fetch('/api/connections/requests/sent', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const list = await res.json();
-                updateTabBadgeCounts(null, list.length, null);
-                renderSentRequestsList(container, list);
-            }
-        } catch (e) {
-            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger-text);">Error loading sent requests.</div>`;
-        }
-    } else if (tabName === 'connected') {
-        try {
-            const res = await fetch('/api/connections', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const list = await res.json();
-                updateTabBadgeCounts(null, null, list.length);
-                renderMyConnectionsList(container, list);
-            }
-        } catch (e) {
-            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger-text);">Error loading connections.</div>`;
-        }
-    }
-}
-
-function updateTabBadgeCounts(receivedCount, sentCount, connectedCount) {
-    if (receivedCount !== null) {
-        ['tabReceivedCount', 'dashTabReceivedCount'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = receivedCount;
-        });
-        const stat = document.getElementById('statPendingReceived');
-        if (stat) stat.innerText = receivedCount;
-    }
-    if (sentCount !== null) {
-        ['tabSentCount', 'dashTabSentCount'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = sentCount;
-        });
-        const stat = document.getElementById('statPendingSent');
-        if (stat) stat.innerText = sentCount;
-    }
-    if (connectedCount !== null) {
-        ['tabConnectedCount', 'dashTabConnectedCount'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = connectedCount;
-        });
-        const stat = document.getElementById('statTotalConnected');
-        if (stat) stat.innerText = connectedCount;
-    }
-}
-
-function renderReceivedRequestsList(container, list) {
-    if (list.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📥</div>
-                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main);">No incoming connection requests</h3>
-                <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    When other community members send you a connection request, they will appear here.
-                </p>
-            </div>
-        `;
-        return;
-    }
-
-    container.innerHTML = list.map(req => {
-        const u = req.user;
-        return `
-            <div class="connection-card">
-                <div class="connection-card-avatar">
-                    ${escapeHtml(u.profilePhoto || getInitials(u.name))}
-                </div>
-                <div class="connection-card-info">
-                    <div class="connection-card-name" onclick="viewUserProfileByPublicId(${u.userId})">${escapeHtml(u.name)}</div>
-                    <div class="connection-card-sub">${escapeHtml(u.profession || 'Community Member')} • ${escapeHtml(u.currentCity || u.currentCountry || '')}</div>
-                    <div class="connection-card-meta">
-                        <span>🎓 ${escapeHtml(u.collegeName || 'N/A')}</span>
-                        <span>•</span>
-                        <span>Received ${new Date(req.createdAt).toLocaleDateString()}</span>
-                    </div>
-                </div>
-                <div class="connection-card-actions">
-                    <button class="btn-accept" onclick="handleAcceptConnectionRequest(event, ${req.connectionId}, ${u.userId})">✓ Accept</button>
-                    <button class="btn-reject" onclick="handleRejectConnectionRequest(event, ${req.connectionId}, ${u.userId})">✗ Reject</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function renderSentRequestsList(container, list) {
-    if (list.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📤</div>
-                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main);">No sent connection requests</h3>
-                <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    Requests you send to fellow students and alumni will appear here.
-                </p>
-            </div>
-        `;
-        return;
-    }
-
-    container.innerHTML = list.map(req => {
-        const u = req.user;
-        return `
-            <div class="connection-card">
-                <div class="connection-card-avatar">
-                    ${escapeHtml(u.profilePhoto || getInitials(u.name))}
-                </div>
-                <div class="connection-card-info">
-                    <div class="connection-card-name" onclick="viewUserProfileByPublicId(${u.userId})">${escapeHtml(u.name)}</div>
-                    <div class="connection-card-sub">${escapeHtml(u.profession || 'Community Member')} • ${escapeHtml(u.currentCity || u.currentCountry || '')}</div>
-                    <div class="connection-card-meta">
-                        <span>🎓 ${escapeHtml(u.collegeName || 'N/A')}</span>
-                        <span>•</span>
-                        <span>Sent ${new Date(req.createdAt).toLocaleDateString()}</span>
-                    </div>
-                </div>
-                <div class="connection-card-actions">
-                    <span class="btn-pending">⏳ Pending</span>
-                    <button class="btn-cancel" onclick="handleCancelConnectionRequest(event, ${req.connectionId}, ${u.userId})">Cancel Request</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function renderMyConnectionsList(container, list) {
-    if (list.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">👥</div>
-                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main);">No active connections yet</h3>
-                <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    Discover people in your target city or college and click <strong>Connect</strong> to build your network!
-                </p>
-                <button class="btn-primary" style="margin-top: 1rem;" onclick="switchView('people')">🔍 Discover People</button>
-            </div>
-        `;
-        return;
-    }
-
-    container.innerHTML = list.map(conn => {
-        const u = conn.user;
-        return `
-            <div class="connection-card">
-                <div class="connection-card-avatar">
-                    ${escapeHtml(u.profilePhoto || getInitials(u.name))}
-                </div>
-                <div class="connection-card-info">
-                    <div class="connection-card-name" onclick="viewUserProfileByPublicId(${u.userId})">${escapeHtml(u.name)}</div>
-                    <div class="connection-card-sub">${escapeHtml(u.profession || 'Community Member')} • ${escapeHtml(u.currentCity || u.currentCountry || '')}</div>
-                    <div class="connection-card-meta">
-                        <span>🎓 ${escapeHtml(u.collegeName || 'N/A')}</span>
-                        <span>•</span>
-                        <span>Connected since ${new Date(conn.connectedAt).toLocaleDateString()}</span>
-                    </div>
-                </div>
-                <div class="connection-card-actions">
-                    <button class="btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 0.85rem;" onclick="viewUserProfileByPublicId(${u.userId})">View Profile</button>
-                    <button class="btn-remove" onclick="handleRemoveConnection(event, ${conn.connectionId}, ${u.userId})">Remove</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
+let rawLoadedConnectionsList = [];
 
 function initConnectionsPage() {
     updateNotificationBadge();
     switchConnectionsTab('received');
 }
 
-/**
- * Render Feed Posts
- */
-function renderFeed(category = 'all') {
-    const feedContainer = document.getElementById('feedPostsContainer');
-    if (!feedContainer) return;
+function switchConnectionsTab(tabName) {
+    activeConnectionsTab = tabName;
 
-    let postsToRender = mockPosts;
-    if (category !== 'all') {
-        postsToRender = mockPosts.filter(p => p.category === category);
+    ['received', 'sent', 'connected'].forEach(t => {
+        const btn = document.getElementById(`btnTab${t.charAt(0).toUpperCase() + t.slice(1)}`) ||
+                    document.getElementById(`btnDashTab${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        if (btn) btn.classList.toggle('active', t === tabName);
+    });
+
+    loadConnectionsTabData(tabName);
+}
+
+async function loadConnectionsTabData(tabName) {
+    const container = document.getElementById('connectionsContainer') || document.getElementById('dashConnectionsContainer');
+    if (!container) return;
+
+    container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading connections...</div>`;
+
+    let url = '/api/connections/requests/received';
+    if (tabName === 'sent') url = '/api/connections/requests/sent';
+    if (tabName === 'connected') url = '/api/connections';
+
+    try {
+        const res = await authenticatedFetch(url);
+        if (res.ok) {
+            rawLoadedConnectionsList = await res.json();
+            fetchHeaderConnectionCount();
+            renderConnectionsTabList(container, rawLoadedConnectionsList, tabName);
+        } else {
+            container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger-text);">Error loading data.</div>`;
+        }
+    } catch (e) {
+        container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger-text);">Error loading data.</div>`;
+    }
+}
+
+async function fetchHeaderConnectionCount() {
+    try {
+        const res = await authenticatedFetch('/api/connections');
+        if (res.ok) {
+            const list = await res.json();
+            const badge = document.getElementById('connectionsHeaderCountBadge');
+            if (badge) badge.innerText = `${list.length} Connections`;
+
+            const statConnected = document.getElementById('statTotalConnected');
+            if (statConnected) statConnected.innerText = list.length;
+        }
+    } catch (e) {}
+}
+
+function handleConnectionsSearch() {
+    const query = document.getElementById('connectionsSearchInput')?.value.trim().toLowerCase() || '';
+    const container = document.getElementById('connectionsContainer') || document.getElementById('dashConnectionsContainer');
+    if (!container) return;
+
+    if (!query) {
+        renderConnectionsTabList(container, rawLoadedConnectionsList, activeConnectionsTab);
+        return;
     }
 
-    if (postsToRender.length === 0) {
-        feedContainer.innerHTML = `
-            <div class="post-card" style="text-align: center; color: var(--text-muted); padding: 2rem;">
-                No posts found in this category. Be the first to share an update!
+    const filtered = rawLoadedConnectionsList.filter(item => {
+        const u = item.user;
+        if (!u) return false;
+        const name = (u.name || '').toLowerCase();
+        const prof = (u.profession || '').toLowerCase();
+        const city = (u.currentCity || '').toLowerCase();
+        const country = (u.currentCountry || '').toLowerCase();
+        const college = (u.collegeName || '').toLowerCase();
+
+        return name.includes(query) || prof.includes(query) || city.includes(query) || country.includes(query) || college.includes(query);
+    });
+
+    renderConnectionsTabList(container, filtered, activeConnectionsTab);
+}
+
+function renderConnectionsTabList(container, list, tabName) {
+    if (list.length === 0) {
+        let emptyText = "No incoming requests right now.";
+        if (tabName === 'sent') emptyText = "No sent requests.";
+        if (tabName === 'connected') emptyText = "No connections yet. Connect with alumni and professionals to grow your network.";
+
+        container.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🤝</div>
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main);">${escapeHtml(emptyText)}</h3>
+                ${tabName === 'connected' ? `
+                    <button class="btn-primary" style="margin-top: 1rem;" onclick="switchView('people')">🔍 Discover People</button>
+                ` : ''}
             </div>
         `;
         return;
     }
 
-    feedContainer.innerHTML = postsToRender.map(post => `
-        <div class="post-card" id="post-${post.id}">
-            <div class="post-header">
-                <div class="post-author-info">
-                    <div class="avatar-circle" style="background-color: ${post.avatarBg}">
-                        ${post.authorAvatar}
-                    </div>
-                    <div class="author-details">
-                        <div class="author-name">${escapeHtml(post.authorName)}</div>
-                        <div class="author-title">${escapeHtml(post.authorTitle)}</div>
-                        <div class="post-meta">
-                            <span class="post-time">${post.timeAgo}</span>
-                            <span class="post-location">📍 ${escapeHtml(post.location)}</span>
+    if (tabName === 'received') {
+        const countBadge = document.getElementById('tabReceivedCount');
+        if (countBadge) countBadge.innerText = list.length;
+        const statRec = document.getElementById('statPendingReceived');
+        if (statRec) statRec.innerText = list.length;
+
+        container.innerHTML = list.map(req => {
+            const u = req.user;
+            return `
+                <div class="social-profile-card">
+                    <div class="social-card-header">
+                        <div class="social-card-avatar" onclick="viewUserProfileByPublicId(${u.userId})">
+                            ${u.profilePhoto ? `<img src="${escapeHtml(u.profilePhoto)}" alt="Avatar">` : getInitials(u.name)}
+                        </div>
+                        <div class="social-card-details">
+                            <div class="social-card-name" onclick="viewUserProfileByPublicId(${u.userId})">${escapeHtml(u.name)}</div>
+                            <div class="social-card-profession">${escapeHtml(u.profession || 'Community Member')}</div>
+                            <div class="social-card-location">📍 ${escapeHtml(u.currentCity || '')} ${u.currentCountry ? '(' + escapeHtml(u.currentCountry) + ')' : ''}</div>
+                            <div class="social-card-college">🎓 ${escapeHtml(u.collegeName || 'N/A')}</div>
                         </div>
                     </div>
+                    ${u.bio ? `<div class="social-card-bio">"${escapeHtml(u.bio)}"</div>` : ''}
+                    <div class="social-card-actions">
+                        <button class="btn-accept" style="flex:1;" onclick="handleAcceptConnectionRequest(event, ${req.connectionId}, ${u.userId})">✓ Accept</button>
+                        <button class="btn-reject" style="flex:1;" onclick="handleRejectConnectionRequest(event, ${req.connectionId}, ${u.userId})">✗ Ignore</button>
+                    </div>
                 </div>
-                <span class="badge ${post.badgeClass}">${post.badgeText}</span>
-            </div>
+            `;
+        }).join('');
 
-            <div class="post-content">
-                ${escapeHtml(post.content)}
-            </div>
+    } else if (tabName === 'sent') {
+        const countBadge = document.getElementById('tabSentCount');
+        if (countBadge) countBadge.innerText = list.length;
 
-            <span class="post-tag"># ${post.tag}</span>
+        container.innerHTML = list.map(req => {
+            const u = req.user;
+            return `
+                <div class="social-profile-card">
+                    <div class="social-card-header">
+                        <div class="social-card-avatar" onclick="viewUserProfileByPublicId(${u.userId})">
+                            ${u.profilePhoto ? `<img src="${escapeHtml(u.profilePhoto)}" alt="Avatar">` : getInitials(u.name)}
+                        </div>
+                        <div class="social-card-details">
+                            <div class="social-card-name" onclick="viewUserProfileByPublicId(${u.userId})">${escapeHtml(u.name)}</div>
+                            <div class="social-card-profession">${escapeHtml(u.profession || 'Community Member')}</div>
+                            <div class="social-card-location">📍 ${escapeHtml(u.currentCity || '')} ${u.currentCountry ? '(' + escapeHtml(u.currentCountry) + ')' : ''}</div>
+                            <div class="social-card-college">🎓 ${escapeHtml(u.collegeName || 'N/A')}</div>
+                        </div>
+                    </div>
+                    <div class="social-card-actions">
+                        <span class="btn-pending" style="flex:1; text-align:center;">⏳ Sent</span>
+                        <button class="btn-cancel" style="flex:1;" onclick="handleCancelConnectionRequest(event, ${req.connectionId}, ${u.userId})">Cancel</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
 
-            <div class="post-footer">
-                <button class="action-btn ${post.isLiked ? 'liked' : ''}" onclick="toggleLike(${post.id})">
-                    ${post.isLiked ? '❤️' : '🤍'} <span>${post.likesCount}</span>
-                </button>
-                <button class="action-btn" onclick="openPostComments(${post.id})">
-                    💬 <span>${post.commentsCount} Comments</span>
-                </button>
-                <button class="action-btn" onclick="sharePost(${post.id})">
-                    ↗ Share
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
+    } else if (tabName === 'connected') {
+        const countBadge = document.getElementById('tabConnectedCount');
+        if (countBadge) countBadge.innerText = list.length;
 
-function toggleLike(postId) {
-    const post = mockPosts.find(p => p.id === postId);
-    if (post) {
-        post.isLiked = !post.isLiked;
-        post.likesCount += post.isLiked ? 1 : -1;
-        renderFeed(document.querySelector('.tab-pill.active')?.getAttribute('data-category') || 'all');
-    }
-}
-
-function initComposer() {
-    const submitPostBtn = document.getElementById('submitPostBtn');
-    const composerTextarea = document.getElementById('composerTextarea');
-
-    if (submitPostBtn && composerTextarea) {
-        submitPostBtn.addEventListener('click', () => {
-            const text = composerTextarea.value.trim();
-            if (!text) return;
-
-            const newPost = {
-                id: Date.now(),
-                authorId: currentUser ? currentUser.id : 999,
-                authorName: currentProfile ? currentProfile.userName : (currentUser ? currentUser.name : "Aditya Bandi"),
-                authorTitle: currentProfile && currentProfile.profession ? currentProfile.profession : "Community Member",
-                authorAvatar: currentProfile ? getInitials(currentProfile.userName) : getInitials(currentUser ? currentUser.name : "Aditya"),
-                avatarBg: "#2563eb",
-                badgeText: currentUser && currentUser.userType === 'ABROAD' ? "Living Abroad" : "Planning Move",
-                badgeClass: currentUser && currentUser.userType === 'ABROAD' ? "badge-abroad" : "badge-aspiring",
-                location: currentProfile && currentProfile.currentCity ? `${currentProfile.currentCity}, ${currentProfile.currentCountry}` : "Global Community",
-                timeAgo: "Just now",
-                category: "experience",
-                content: text,
-                likesCount: 1,
-                commentsCount: 0,
-                isLiked: true,
-                tag: "Community Update"
-            };
-
-            mockPosts.unshift(newPost);
-            composerTextarea.value = '';
-            renderFeed(document.querySelector('.tab-pill.active')?.getAttribute('data-category') || 'all');
-        });
+        container.innerHTML = list.map(conn => {
+            const u = conn.user;
+            return `
+                <div class="social-profile-card">
+                    <div class="social-card-header">
+                        <div class="social-card-avatar" onclick="viewUserProfileByPublicId(${u.userId})">
+                            ${u.profilePhoto ? `<img src="${escapeHtml(u.profilePhoto)}" alt="Avatar">` : getInitials(u.name)}
+                        </div>
+                        <div class="social-card-details">
+                            <div class="social-card-name" onclick="viewUserProfileByPublicId(${u.userId})">${escapeHtml(u.name)}</div>
+                            <div class="social-card-profession">${escapeHtml(u.profession || 'Community Member')}</div>
+                            <div class="social-card-location">📍 ${escapeHtml(u.currentCity || '')} ${u.currentCountry ? '(' + escapeHtml(u.currentCountry) + ')' : ''}</div>
+                            <div class="social-card-college">🎓 ${escapeHtml(u.collegeName || 'N/A')}</div>
+                        </div>
+                    </div>
+                    <div class="social-card-actions">
+                        <button class="btn-primary" style="flex:1;" onclick="openChatWithUser(event, ${u.userId})">💬 Message</button>
+                        <button class="btn-secondary" style="flex:1;" onclick="viewUserProfileByPublicId(${u.userId})">View Profile</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 }
 
@@ -1670,156 +1720,843 @@ function renderRightSidebar() {
     const list = document.getElementById('peopleSuggestionsList');
     if (!list) return;
 
-    const suggestions = mockUsers.slice(0, 3);
-    list.innerHTML = suggestions.map(u => `
-        <div class="suggestion-item">
-            <div class="avatar-circle" style="background-color: ${u.avatarBg}; width: 36px; height: 36px; font-size: 0.85rem;">
-                ${u.avatarInitials}
-            </div>
-            <div class="suggestion-info">
-                <div class="suggestion-name">${escapeHtml(u.name)}</div>
-                <div class="suggestion-meta">${escapeHtml(u.city || u.location)}</div>
-            </div>
-            <button class="action-btn" style="color: var(--primary); font-weight: 600;" onclick="handleConnectClick(event, ${u.id})">+ Add</button>
-        </div>
-    `).join('');
+    authenticatedFetch('/api/profiles/people?size=3')
+        .then(r => r.json())
+        .then(data => {
+            if (data.content && data.content.length > 0) {
+                list.innerHTML = data.content.map(u => `
+                    <div class="suggestion-item" style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+                        <div class="avatar-circle" style="width:36px; height:36px; font-size:0.85rem;" onclick="viewUserProfileByPublicId(${u.userId})">
+                            ${getInitials(u.name)}
+                        </div>
+                        <div class="suggestion-info" style="flex:1; min-width:0;" onclick="viewUserProfileByPublicId(${u.userId})">
+                            <div class="suggestion-name" style="font-weight:600; font-size:0.85rem; cursor:pointer;">${escapeHtml(u.name)}</div>
+                            <div class="suggestion-meta" style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(u.currentCity || u.currentCountry || '')}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                list.innerHTML = `<div style="font-size:0.85rem; color:var(--text-muted);">No suggestions right now.</div>`;
+            }
+        }).catch(() => {
+            list.innerHTML = `<div style="font-size:0.85rem; color:var(--text-muted);">No suggestions right now.</div>`;
+        });
+}
 
-    const commList = document.getElementById('communitiesWidgetList');
-    if (commList) {
-        commList.innerHTML = mockCommunities.slice(0, 3).map(c => `
-            <div class="suggestion-item">
-                <div style="font-size: 1.2rem;">${c.flag || '🌐'}</div>
-                <div class="suggestion-info">
-                    <div class="suggestion-name">${escapeHtml(c.name)}</div>
-                    <div class="suggestion-meta">${c.membersCount} members</div>
-                </div>
-            </div>
-        `).join('');
+/**
+ * ==========================================================================
+ * PHASE 5: STOMP WebSocket Real-Time Chat Engine
+ * ==========================================================================
+ */
+
+function initStompClient() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token || !currentUser) return;
+    if (stompClient && stompClient.connected) return;
+
+    try {
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+        stompClient.debug = null;
+
+        stompClient.connect({ 'Authorization': `Bearer ${token}` }, (frame) => {
+            console.log('STOMP WebSocket Connected successfully');
+
+            stompClient.subscribe(`/user/${currentUser.id}/queue/messages`, (message) => {
+                if (message.body) {
+                    const msgResponse = JSON.parse(message.body);
+                    handleIncomingChatMessage(msgResponse);
+                }
+            });
+        }, (error) => {
+            console.warn('STOMP connection failed, retrying...', error);
+            setTimeout(initStompClient, 5000);
+        });
+    } catch (e) {
+        console.error("STOMP initialization exception:", e);
     }
 }
 
-function renderExploreView() {
-    const container = document.getElementById('exploreCountriesContainer');
-    if (!container) return;
+async function loadConversationsView() {
+    const convListElem = document.getElementById('conversationsList');
+    if (convListElem) {
+        convListElem.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading chats...</div>`;
+    }
 
-    container.innerHTML = mockCommunities.map(comm => `
-        <div class="user-card" style="text-align: left;">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">${comm.flag || '🌐'}</div>
-            <div class="card-name" style="font-size: 1.1rem;">${escapeHtml(comm.name)}</div>
-            <div class="card-title" style="margin-bottom: 0.5rem;">${comm.membersCount} active members</div>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">${escapeHtml(comm.description)}</p>
-            <button class="btn-secondary" style="width: 100%;" onclick="alert('Joined ${comm.name}')">Join Community</button>
-        </div>
-    `).join('');
+    try {
+        const res = await authenticatedFetch('/api/conversations');
+
+        if (res.ok) {
+            userConversations = await res.json();
+            updateMessagesBadge();
+            renderConversationsSidebarList(userConversations);
+
+            if (userConversations.length > 0) {
+                if (!activeConversationId) {
+                    openConversation(userConversations[0].id, userConversations[0].otherUser.userId);
+                } else {
+                    const activeConv = userConversations.find(c => c.id === activeConversationId);
+                    if (activeConv) {
+                        openConversation(activeConv.id, activeConv.otherUser.userId);
+                    }
+                }
+            } else {
+                renderEmptyChatArea();
+            }
+        } else {
+            renderEmptyChatArea();
+        }
+    } catch (e) {
+        console.error("Error loading conversations:", e);
+        renderEmptyChatArea();
+    }
 }
 
-function renderJobsView() {
-    const container = document.getElementById('jobsListContainer');
+function updateMessagesBadge() {
+    if (!userConversations) return;
+    let totalUnread = 0;
+    userConversations.forEach(c => totalUnread += (c.unreadCount || 0));
+
+    const badge = document.getElementById('sidebarMessagesBadge');
+    if (badge) {
+        badge.innerText = totalUnread > 0 ? totalUnread : '0';
+        badge.style.display = totalUnread > 0 ? 'inline-block' : 'none';
+    }
+}
+
+function renderConversationsSidebarList(list) {
+    const container = document.getElementById('conversationsList');
     if (!container) return;
 
-    container.innerHTML = mockJobs.map(job => `
-        <div class="card-item">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-main);">${escapeHtml(job.title)}</h3>
-                    <div style="color: var(--primary); font-weight: 600; font-size: 0.85rem; margin-top: 0.15rem;">🏢 ${escapeHtml(job.company)} • 📍 ${escapeHtml(job.location)}</div>
+    if (list.length === 0) {
+        container.innerHTML = `
+            <div style="padding: 2rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
+                No conversations yet.<br>Connect with people to start chatting.
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = list.map(c => {
+        const other = c.otherUser;
+        const isActive = c.id === activeConversationId;
+        const unread = c.unreadCount > 0 ? `<span class="conv-unread-badge">${c.unreadCount}</span>` : '';
+        const timeAgo = formatTimeAgo(c.lastMessageAt);
+
+        return `
+            <div class="conv-item ${isActive ? 'active' : ''}" onclick="openConversation(${c.id}, ${other.userId})">
+                <div class="conv-item-avatar">
+                    ${other.profilePhoto ? `<img src="${escapeHtml(other.profilePhoto)}" alt="Avatar">` : getInitials(other.name)}
                 </div>
-                <span class="badge badge-abroad">${job.payRate}</span>
-            </div>
-            <p style="font-size: 0.9rem; color: var(--text-main); margin: 0.75rem 0;">${escapeHtml(job.description)}</p>
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">
-                <span>Posted by ${escapeHtml(job.postedBy)} • ${job.timeAgo}</span>
-                <button class="btn-primary" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="alert('Contact details: ${job.contact}')">Message Poster</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-function renderHousingView() {
-    const container = document.getElementById('housingListContainer');
-    if (!container) return;
-
-    container.innerHTML = mockHousing.map(h => `
-        <div class="card-item">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-main);">${escapeHtml(h.title)}</h3>
-                    <div style="color: var(--primary); font-weight: 600; font-size: 0.85rem; margin-top: 0.15rem;">📍 ${escapeHtml(h.location)} • Move-in: ${h.availableFrom}</div>
+                <div class="conv-item-body">
+                    <div class="conv-item-top">
+                        <span class="conv-item-name">${escapeHtml(other.name)}</span>
+                        <span class="conv-item-time">${timeAgo}</span>
+                    </div>
+                    <div class="conv-item-preview" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>${escapeHtml(c.lastMessage || 'No messages yet')}</span>
+                        ${unread}
+                    </div>
                 </div>
-                <span class="badge badge-abroad">${h.rent}</span>
             </div>
-            <p style="font-size: 0.9rem; color: var(--text-main); margin: 0.75rem 0;">${escapeHtml(h.description)}</p>
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">
-                <span>Posted by ${escapeHtml(h.postedBy)} • ${h.timeAgo}</span>
-                <button class="btn-primary" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="alert('Contact details: ${h.contact}')">Inquire Housing</button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
-function renderMessagesView() {
-    const convList = document.getElementById('conversationsList');
-    if (!convList) return;
+async function openChatWithUser(event, targetUserId) {
+    if (event) event.stopPropagation();
 
-    convList.innerHTML = mockConversations.map(c => `
-        <div class="conv-item ${c.id === activeConversationId ? 'active' : ''}" onclick="selectConversation(${c.id})">
-            <div class="avatar-circle" style="background-color: ${c.avatarBg}; width: 38px; height: 38px; font-size: 0.85rem;">
-                ${c.avatarInitials}
-            </div>
-            <div class="conv-info">
-                <div class="conv-name">${escapeHtml(c.userName)}</div>
-                <div class="conv-last">${escapeHtml(c.lastMessage)}</div>
-            </div>
-            <div class="conv-time">${c.timeAgo}</div>
-        </div>
-    `).join('');
+    if (!window.location.pathname.includes('/dashboard.html')) {
+        window.location.href = `/dashboard.html?view=messages&userId=${targetUserId}`;
+        return;
+    }
 
-    renderActiveChat();
+    switchView('messages');
+
+    try {
+        const res = await authenticatedFetch(`/api/conversations/${targetUserId}`, { method: 'POST' });
+
+        if (res.ok) {
+            const conv = await res.json();
+            activeConversationId = conv.id;
+            activeRecipientId = targetUserId;
+            await loadConversationsView();
+        } else {
+            const errData = await res.json();
+            showToast(errData.message || "You must be connected with this user before starting a conversation.", 'error');
+            renderEmptyChatArea(errData.message || "You must be connected with this user before starting a conversation.");
+        }
+    } catch (e) {
+        console.error("Open chat with user error:", e);
+        showToast("Error opening conversation.", 'error');
+    }
 }
 
-function selectConversation(id) {
-    activeConversationId = id;
-    renderMessagesView();
+async function openConversation(conversationId, recipientId) {
+    activeConversationId = conversationId;
+    activeRecipientId = recipientId;
+
+    renderConversationsSidebarList(userConversations);
+
+    try {
+        const res = await authenticatedFetch(`/api/conversations/${conversationId}/messages?page=0&size=50`);
+
+        if (res.ok) {
+            const pageData = await res.json();
+            renderActiveChatWindow(pageData.content || []);
+
+            const targetConv = userConversations.find(c => c.id === conversationId);
+            if (targetConv) targetConv.unreadCount = 0;
+            updateMessagesBadge();
+        }
+    } catch (e) {
+        console.error("Fetch conversation messages error:", e);
+    }
 }
 
-function renderActiveChat() {
-    const chatContainer = document.getElementById('chatMessagesContainer');
-    const headerElem = document.getElementById('chatHeaderName');
+function renderActiveChatWindow(messages) {
+    const chatContainer = document.getElementById('view-messages');
     if (!chatContainer) return;
 
-    const activeMsg = mockConversations.find(c => c.id === activeConversationId);
-    if (!activeMsg) return;
+    const conv = userConversations.find(c => c.id === activeConversationId);
+    const otherUser = conv ? conv.otherUser : null;
 
-    if (headerElem) headerElem.innerText = activeMsg.userName;
+    const chatArea = chatContainer.querySelector('.chat-area');
+    if (!chatArea) return;
 
-    chatContainer.innerHTML = activeMsg.conversation.map(c => `
-        <div class="message-bubble ${c.sender === 'You' ? 'outgoing' : 'incoming'}">
-            <div style="font-size: 0.75rem; font-weight: 600; margin-bottom: 0.15rem; opacity: 0.8;">${c.sender} • ${c.time}</div>
-            <div>${escapeHtml(c.text)}</div>
+    chatArea.innerHTML = `
+        <div class="chat-header">
+            <div class="avatar-circle" style="width: 40px; height: 40px; font-size: 0.9rem;" onclick="viewUserProfileByPublicId(${otherUser ? otherUser.userId : activeRecipientId})">
+                ${otherUser && otherUser.profilePhoto ? `<img src="${escapeHtml(otherUser.profilePhoto)}" alt="Avatar">` : getInitials(otherUser ? otherUser.name : 'User')}
+            </div>
+            <div class="chat-header-info">
+                <span class="chat-header-name" style="cursor:pointer;" onclick="viewUserProfileByPublicId(${otherUser ? otherUser.userId : activeRecipientId})">
+                    ${escapeHtml(otherUser ? otherUser.name : 'Chat')}
+                </span>
+                <span class="chat-header-sub">
+                    ${escapeHtml(otherUser ? (otherUser.profession || 'Community Member') + ' • ' + (otherUser.currentCity || otherUser.currentCountry || '') : '')}
+                </span>
+            </div>
         </div>
-    `).join('');
 
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+        <div class="chat-messages" id="chatMessagesStream">
+            ${messages.map(m => renderSingleChatMessage(m)).join('')}
+        </div>
+
+        <div class="chat-input-box">
+            <input type="text" id="chatMessageInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="btn-primary" onclick="sendChatMessage()">Send</button>
+        </div>
+    `;
+
+    scrollChatToBottom();
 }
 
-function getInitials(name) {
-    if (!name) return 'CA';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
+function renderSingleChatMessage(m) {
+    const isSentByMe = currentUser && m.senderId === currentUser.id;
+    const timeStr = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const readStatus = isSentByMe ? (m.readAt ? '✓✓ Read' : '✓ Sent') : '';
+
+    return `
+        <div class="chat-message-row ${isSentByMe ? 'sent' : 'received'}" id="msg-${m.id}">
+            <div class="chat-bubble">
+                ${escapeHtml(m.content)}
+            </div>
+            <div class="chat-message-meta">
+                <span>${timeStr}</span>
+                ${readStatus ? `<span>• ${readStatus}</span>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chatMessageInput');
+    if (!input) return;
+
+    const text = input.value.trim();
+    if (!text || !activeConversationId || !activeRecipientId) return;
+
+    input.value = '';
+
+    const payload = {
+        conversationId: activeConversationId,
+        recipientId: activeRecipientId,
+        content: text
+    };
+
+    if (stompClient && stompClient.connected) {
+        stompClient.send("/app/chat.send", {}, JSON.stringify(payload));
+    } else {
+        try {
+            const res = await authenticatedFetch(`/api/conversations/${activeConversationId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const msgObj = await res.json();
+                handleIncomingChatMessage(msgObj);
+            } else {
+                const errData = await res.json();
+                showToast(errData.message || "Could not send message.", 'error');
+            }
+        } catch (e) {
+            console.error("REST send message fallback error:", e);
+        }
     }
-    return name.substring(0, 2).toUpperCase();
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>"']/g, function(m) {
-        return {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        }[m];
-    });
+function handleIncomingChatMessage(msgObj) {
+    if (msgObj.conversationId === activeConversationId) {
+        const stream = document.getElementById('chatMessagesStream');
+        if (stream) {
+            stream.insertAdjacentHTML('beforeend', renderSingleChatMessage(msgObj));
+            scrollChatToBottom();
+        }
+    }
+
+    loadConversationsView();
 }
+
+function scrollChatToBottom() {
+    const stream = document.getElementById('chatMessagesStream');
+    if (stream) {
+        stream.scrollTop = stream.scrollHeight;
+    }
+}
+
+function renderEmptyChatArea(messageText = null) {
+    const chatContainer = document.getElementById('view-messages');
+    if (!chatContainer) return;
+
+    const chatArea = chatContainer.querySelector('.chat-area');
+    if (!chatArea) return;
+
+    chatArea.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 2rem; color: var(--text-muted);">
+            <div style="font-size: 3rem; margin-bottom: 0.75rem;">💬</div>
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main);">Private Messages</h3>
+            <p style="font-size: 0.88rem; max-width: 360px; margin-top: 0.25rem;">
+                ${escapeHtml(messageText || "Connect with people from your college or destination to start chatting.")}
+            </p>
+            <button class="btn-primary" style="margin-top: 1rem;" onclick="switchView('people')">🔍 Discover People</button>
+        </div>
+    `;
+}
+
+function formatTimeAgo(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffSec = Math.floor((now - date) / 1000);
+
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h`;
+    return date.toLocaleDateString();
+}
+
+/**
+ * ==========================================================================
+ * Phase 7 — Jobs & Opportunities + Actionable Social Profiles Engine
+ * ==========================================================================
+ */
+
+let jobsCurrentTab = 'all'; // 'all', 'saved', 'my'
+let jobsCurrentPage = 0;
+
+async function initJobsPage() {
+    await fetchMyUserData();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+    const actionParam = urlParams.get('action');
+
+    if (viewParam === 'saved') {
+        switchJobsTab('saved');
+    } else if (viewParam === 'my') {
+        switchJobsTab('my');
+    } else {
+        switchJobsTab('all');
+    }
+
+    if (actionParam === 'new') {
+        openPostJobModal();
+    }
+
+    const searchInput = document.getElementById('jobSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') applyJobFilters();
+        });
+    }
+}
+
+function switchJobsTab(tab) {
+    jobsCurrentTab = tab;
+    jobsCurrentPage = 0;
+
+    const tabAll = document.getElementById('tabAllJobs');
+    const tabSaved = document.getElementById('tabSavedJobs');
+    const tabMy = document.getElementById('tabMyJobs');
+    const filterCard = document.getElementById('jobsFilterCard');
+
+    if (tabAll) tabAll.classList.toggle('active', tab === 'all');
+    if (tabSaved) tabSaved.classList.toggle('active', tab === 'saved');
+    if (tabMy) tabMy.classList.toggle('active', tab === 'my');
+
+    if (filterCard) {
+        filterCard.style.display = (tab === 'all') ? 'block' : 'none';
+    }
+
+    fetchJobs(0);
+}
+
+async function fetchJobs(page = 0) {
+    jobsCurrentPage = page;
+    const container = document.getElementById('jobsFeedContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); padding: 3rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            Loading job opportunities...
+        </div>
+    `;
+
+    let url = `/api/jobs?page=${page}&size=10`;
+
+    if (jobsCurrentTab === 'saved') {
+        url = `/api/jobs/saved?page=${page}&size=10`;
+    } else if (jobsCurrentTab === 'my') {
+        url = `/api/jobs/my?page=${page}&size=10`;
+    } else {
+        const keyword = document.getElementById('jobSearchInput')?.value.trim() || '';
+        const country = document.getElementById('filterCountry')?.value || '';
+        const city = document.getElementById('filterCity')?.value.trim() || '';
+        const empType = document.getElementById('filterEmploymentType')?.value || '';
+        const workMode = document.getElementById('filterWorkMode')?.value || '';
+
+        const params = new URLSearchParams();
+        params.append('page', page);
+        params.append('size', 10);
+        if (keyword) params.append('keyword', keyword);
+        if (country) params.append('country', country);
+        if (city) params.append('city', city);
+        if (empType) params.append('employmentType', empType);
+        if (workMode) params.append('workMode', workMode);
+
+        url = `/api/jobs?${params.toString()}`;
+    }
+
+    try {
+        const response = await authenticatedFetch(url);
+
+        if (response.ok) {
+            const pageData = await response.json();
+            const items = pageData.content || [];
+
+            if (items.length === 0) {
+                renderEmptyJobsState(container);
+            } else {
+                container.innerHTML = items.map(item => {
+                    const job = item.job ? item.job : item;
+                    return renderJobCardHtml(job);
+                }).join('');
+
+                renderJobsPagination(pageData);
+            }
+        } else {
+            container.innerHTML = `
+                <div style="text-align: center; color: var(--danger-text); padding: 2rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                    Unable to load job opportunities.
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error("Fetch jobs error:", err);
+    }
+}
+
+function renderEmptyJobsState(container) {
+    if (jobsCurrentTab === 'saved') {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔖</div>
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">You haven't saved any jobs yet</h3>
+                <p style="font-size: 0.88rem; color: var(--text-muted); max-width: 400px; margin: 0.35rem auto 1.25rem auto;">
+                    Bookmark relevant roles to review and apply later.
+                </p>
+                <button class="btn-primary" onclick="switchJobsTab('all')">Explore Jobs</button>
+            </div>
+        `;
+    } else if (jobsCurrentTab === 'my') {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">📋</div>
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">You haven't posted any jobs</h3>
+                <p style="font-size: 0.88rem; color: var(--text-muted); max-width: 400px; margin: 0.35rem auto 1.25rem auto;">
+                    Share job openings with fellow expats and students moving abroad.
+                </p>
+                <button class="btn-primary" onclick="openPostJobModal()">+ Post a Job</button>
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 3rem 1.5rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🌐</div>
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main);">No job opportunities yet</h3>
+                <p style="font-size: 0.88rem; color: var(--text-muted); max-width: 400px; margin: 0.35rem auto 1.25rem auto;">
+                    Be the first to share an opportunity with the ConnectAbroad network.
+                </p>
+                <button class="btn-primary" onclick="openPostJobModal()">+ Post a Job</button>
+            </div>
+        `;
+    }
+}
+
+function renderJobCardHtml(job) {
+    const poster = job.postedBy || {};
+    const empTypeClass = `type-${(job.employmentType || '').toLowerCase().replace('_', '')}`;
+    const workModeClass = `work-${(job.workMode || '').toLowerCase().replace('_', '')}`;
+
+    const empTypeDisplay = (job.employmentType || '').replace('_', '-');
+    const workModeDisplay = job.workMode || '';
+
+    const skills = job.requiredSkills ? job.requiredSkills.split(',') : [];
+    const isSaved = job.saved || false;
+    const isClosed = job.status === 'CLOSED';
+
+    return `
+        <div class="job-card" id="job-card-${job.id}">
+            <div class="job-card-header">
+                <div class="job-poster-info">
+                    <div class="avatar-circle" onclick="viewUserProfileByPublicId(${poster.userId})" style="cursor:pointer; width: 44px; height: 44px;">
+                        ${poster.profilePhoto ? `<img src="${escapeHtml(poster.profilePhoto)}" alt="Avatar">` : getInitials(poster.name)}
+                    </div>
+                    <div>
+                        <div class="job-title" onclick="window.location.href='/job.html?id=${job.id}'">${escapeHtml(job.title)}</div>
+                        <div class="job-company">${escapeHtml(job.companyName)}</div>
+                        <div style="font-size: 0.78rem; color: var(--text-light); margin-top: 0.15rem;">
+                            Posted by <strong class="clickable-user" onclick="viewUserProfileByPublicId(${poster.userId})">${escapeHtml(poster.name)}</strong> (${escapeHtml(poster.profession || 'Expat Member')})
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    ${isClosed ? `<span class="job-badge badge-status-closed">CLOSED</span>` : `<span class="job-badge badge-status-active">ACTIVE</span>`}
+                </div>
+            </div>
+
+            <div class="job-badges">
+                <span class="job-badge ${empTypeClass}">💼 ${escapeHtml(empTypeDisplay)}</span>
+                <span class="job-badge ${workModeClass}">🏠 ${escapeHtml(workModeDisplay)}</span>
+                <span class="job-badge work-onsite">📍 ${escapeHtml(job.city)}, ${escapeHtml(job.country)}</span>
+                ${job.salaryMin ? `<span class="job-badge work-onsite">💰 ${job.currency || '$'}${job.salaryMin}${job.salaryMax ? ' - ' + job.salaryMax : ''}</span>` : ''}
+            </div>
+
+            <p style="font-size: 0.88rem; color: var(--text-main); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0;">
+                ${escapeHtml(job.description)}
+            </p>
+
+            ${skills.length > 0 ? `
+                <div class="job-skills">
+                    ${skills.map(s => `<span class="job-skill-chip">${escapeHtml(s.trim())}</span>`).join('')}
+                </div>
+            ` : ''}
+
+            <div class="job-card-footer">
+                <span class="job-time">Posted ${formatTimeAgo(job.createdAt)}</span>
+                
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn-save-job ${isSaved ? 'saved' : ''}" onclick="toggleSaveJob(event, ${job.id}, ${isSaved})">
+                        ${isSaved ? '♥ Saved' : '♡ Save'}
+                    </button>
+                    <button class="btn-primary" style="font-size: 0.82rem; padding: 0.4rem 0.85rem;" onclick="window.location.href='/job.html?id=${job.id}'">
+                        View Job
+                    </button>
+                    ${job.mine ? `
+                        ${!isClosed ? `<button class="btn-cancel" style="font-size: 0.82rem; padding: 0.4rem 0.65rem;" onclick="handleCloseJob(${job.id})">🔒 Close</button>` : ''}
+                        <button class="btn-remove" style="font-size: 0.82rem; padding: 0.4rem 0.65rem;" onclick="handleDeleteJob(${job.id})">🗑️ Delete</button>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderJobsPagination(pageData) {
+    const container = document.getElementById('jobsPagination');
+    if (!container) return;
+
+    if (pageData.totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+    if (!pageData.first) {
+        html += `<button class="btn-secondary" onclick="fetchJobs(${pageData.pageNumber - 1})">← Previous</button>`;
+    }
+    html += `<span style="align-self: center; font-size: 0.88rem; color: var(--text-muted);">Page ${pageData.pageNumber + 1} of ${pageData.totalPages}</span>`;
+    if (!pageData.last) {
+        html += `<button class="btn-secondary" onclick="fetchJobs(${pageData.pageNumber + 1})">Next →</button>`;
+    }
+    container.innerHTML = html;
+}
+
+function applyJobFilters() {
+    jobsCurrentPage = 0;
+    fetchJobs(0);
+}
+
+function resetJobFilters() {
+    if (document.getElementById('jobSearchInput')) document.getElementById('jobSearchInput').value = '';
+    if (document.getElementById('filterCountry')) document.getElementById('filterCountry').value = '';
+    if (document.getElementById('filterCity')) document.getElementById('filterCity').value = '';
+    if (document.getElementById('filterEmploymentType')) document.getElementById('filterEmploymentType').value = '';
+    if (document.getElementById('filterWorkMode')) document.getElementById('filterWorkMode').value = '';
+
+    applyJobFilters();
+}
+
+async function toggleSaveJob(event, jobId, isCurrentlySaved) {
+    if (event) event.stopPropagation();
+
+    const method = isCurrentlySaved ? 'DELETE' : 'POST';
+    try {
+        const response = await authenticatedFetch(`/api/jobs/${jobId}/save`, { method: method });
+        if (response.ok) {
+            showToast(isCurrentlySaved ? "Job removed from saved items" : "Job saved successfully!", "info");
+            fetchJobs(jobsCurrentPage);
+        } else {
+            showToast("Failed to update saved job status", "error");
+        }
+    } catch (err) {
+        console.error("Toggle save job error:", err);
+    }
+}
+
+function openPostJobModal() {
+    const modal = document.getElementById('postJobModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closePostJobModal() {
+    const modal = document.getElementById('postJobModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function handlePostJobSubmit(e) {
+    e.preventDefault();
+
+    const title = document.getElementById('jobTitleInput')?.value.trim();
+    const companyName = document.getElementById('jobCompanyInput')?.value.trim();
+    const country = document.getElementById('jobCountryInput')?.value;
+    const city = document.getElementById('jobCityInput')?.value.trim();
+    const empType = document.getElementById('jobEmpTypeInput')?.value;
+    const workMode = document.getElementById('jobWorkModeInput')?.value;
+    const salaryMin = document.getElementById('jobSalaryMin')?.value;
+    const salaryMax = document.getElementById('jobSalaryMax')?.value;
+    const currency = document.getElementById('jobCurrency')?.value;
+    const experience = document.getElementById('jobExperience')?.value.trim();
+    const skills = document.getElementById('jobSkills')?.value.trim();
+    const appUrl = document.getElementById('jobAppUrl')?.value.trim();
+    const contactEmail = document.getElementById('jobContactEmail')?.value.trim();
+    const description = document.getElementById('jobDescInput')?.value.trim();
+
+    if (!title || !companyName || !country || !city || !description) {
+        showToast("Please fill all required fields", "error");
+        return;
+    }
+
+    const payload = {
+        title, companyName, country, city,
+        employmentType: empType,
+        workMode: workMode,
+        salaryMin: salaryMin ? parseFloat(salaryMin) : undefined,
+        salaryMax: salaryMax ? parseFloat(salaryMax) : undefined,
+        currency, experienceRequired: experience,
+        requiredSkills: skills, applicationUrl: appUrl,
+        contactEmail, description
+    };
+
+    try {
+        const response = await authenticatedFetch('/api/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            showToast("Job opportunity posted successfully!", "success");
+            closePostJobModal();
+            document.getElementById('postJobForm')?.reset();
+            if (window.location.pathname.includes('/jobs.html')) {
+                switchJobsTab('my');
+            } else {
+                window.location.href = '/jobs.html?view=my';
+            }
+        } else {
+            const errData = await response.json();
+            showToast(errData.message || "Failed to post job.", "error");
+        }
+    } catch (err) {
+        console.error("Post job error:", err);
+        showToast("Error creating job opportunity", "error");
+    }
+}
+
+async function handleCloseJob(jobId) {
+    if (!confirm("Are you sure you want to close this job? Closed jobs will no longer appear in active feeds.")) return;
+
+    try {
+        const response = await authenticatedFetch(`/api/jobs/${jobId}/close`, { method: 'PATCH' });
+        if (response.ok) {
+            showToast("Job has been closed.", "info");
+            fetchJobs(jobsCurrentPage);
+        }
+    } catch (err) {
+        console.error("Close job error:", err);
+    }
+}
+
+async function handleDeleteJob(jobId) {
+    if (!confirm("Are you sure you want to permanently delete this job listing?")) return;
+
+    try {
+        const response = await authenticatedFetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast("Job listing deleted.", "info");
+            fetchJobs(jobsCurrentPage);
+        }
+    } catch (err) {
+        console.error("Delete job error:", err);
+    }
+}
+
+/**
+ * Job Detail Page Engine (job.html?id=27)
+ */
+async function initJobDetailPage() {
+    await fetchMyUserData();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const jobId = urlParams.get('id');
+
+    const container = document.getElementById('jobDetailContainer');
+    const posterWidget = document.getElementById('jobPosterDetails');
+
+    if (!jobId || !container) return;
+
+    try {
+        const response = await authenticatedFetch(`/api/jobs/${jobId}`);
+
+        if (response.ok) {
+            const job = await response.json();
+            renderJobDetailPage(container, posterWidget, job);
+        } else {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 3rem; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                    <h2>Job Listing Not Found</h2>
+                    <p style="color: var(--text-muted); margin-top: 0.5rem;">This job listing may have been closed or deleted by the poster.</p>
+                    <button class="btn-primary" style="margin-top: 1rem;" onclick="window.location.href='/jobs.html'">Explore Active Jobs</button>
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error("Fetch job detail error:", err);
+    }
+}
+
+function renderJobDetailPage(container, posterWidget, job) {
+    const poster = job.postedBy || {};
+    const empTypeDisplay = (job.employmentType || '').replace('_', '-');
+    const workModeDisplay = job.workMode || '';
+    const skills = job.requiredSkills ? job.requiredSkills.split(',') : [];
+    const isSaved = job.saved || false;
+
+    container.innerHTML = `
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+                <div>
+                    <h1 style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">${escapeHtml(job.title)}</h1>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-muted); margin-top: 0.2rem;">${escapeHtml(job.companyName)}</div>
+                </div>
+                <div>
+                    ${job.status === 'CLOSED' ? `<span class="job-badge badge-status-closed">CLOSED</span>` : `<span class="job-badge badge-status-active">ACTIVE OPPORTUNITY</span>`}
+                </div>
+            </div>
+
+            <div class="job-badges" style="margin-top: 1rem;">
+                <span class="job-badge type-fulltime">💼 ${escapeHtml(empTypeDisplay)}</span>
+                <span class="job-badge work-remote">🏠 ${escapeHtml(workModeDisplay)}</span>
+                <span class="job-badge work-onsite">📍 ${escapeHtml(job.city)}, ${escapeHtml(job.country)}</span>
+                ${job.salaryMin ? `<span class="job-badge work-onsite">💰 ${job.currency || '$'}${job.salaryMin}${job.salaryMax ? ' - ' + job.salaryMax : ''}</span>` : ''}
+                ${job.experienceRequired ? `<span class="job-badge work-onsite">⌛ ${escapeHtml(job.experienceRequired)}</span>` : ''}
+            </div>
+
+            <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+                <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.75rem;">About the Role</h3>
+                <p style="font-size: 0.95rem; color: var(--text-main); line-height: 1.6; white-space: pre-line;">${escapeHtml(job.description)}</p>
+            </div>
+
+            ${skills.length > 0 ? `
+                <div style="margin-top: 1.25rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+                    <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.65rem;">Required Skills</h3>
+                    <div class="job-skills">
+                        ${skills.map(s => `<span class="job-skill-chip">${escapeHtml(s.trim())}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Application Action Buttons -->
+            <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                ${job.applicationUrl ? `
+                    <a href="${escapeHtml(job.applicationUrl)}" target="_blank" class="btn-primary" style="padding: 0.65rem 1.25rem; font-size: 0.95rem;">🚀 Apply Now</a>
+                ` : job.contactEmail ? `
+                    <a href="mailto:${escapeHtml(job.contactEmail)}" class="btn-primary" style="padding: 0.65rem 1.25rem; font-size: 0.95rem;">✉️ Apply via Email (${escapeHtml(job.contactEmail)})</a>
+                ` : `
+                    <button class="btn-primary" style="padding: 0.65rem 1.25rem; font-size: 0.95rem;" onclick="openChatWithUser(event, ${poster.userId})">💬 Contact Poster</button>
+                `}
+
+                <button class="btn-save-job ${isSaved ? 'saved' : ''}" style="padding: 0.65rem 1.1rem; font-size: 0.95rem;" onclick="toggleSaveJob(event, ${job.id}, ${isSaved})">
+                    ${isSaved ? '♥ Saved Job' : '♡ Save Job'}
+                </button>
+            </div>
+        </div>
+    `;
+
+    if (posterWidget) {
+        posterWidget.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.75rem;">
+                <div class="avatar-circle" style="width: 72px; height: 72px; font-size: 1.5rem; cursor: pointer;" onclick="viewUserProfileByPublicId(${poster.userId})">
+                    ${poster.profilePhoto ? `<img src="${escapeHtml(poster.profilePhoto)}" alt="Avatar">` : getInitials(poster.name)}
+                </div>
+                <div>
+                    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); cursor: pointer;" onclick="viewUserProfileByPublicId(${poster.userId})">
+                        ${escapeHtml(poster.name)}
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.15rem;">
+                        ${escapeHtml(poster.profession || 'Community Member')}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-light); margin-top: 0.25rem;">
+                        📍 ${escapeHtml(poster.currentCity || '')} ${poster.currentCountry ? '(' + escapeHtml(poster.currentCountry) + ')' : ''}
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%; margin-top: 0.5rem;">
+                    <button class="btn-secondary" style="width: 100%;" onclick="viewUserProfileByPublicId(${poster.userId})">
+                        👤 View Profile
+                    </button>
+                    ${currentUser && currentUser.id !== poster.userId ? `
+                        <button class="btn-primary" style="width: 100%;" onclick="openChatWithUser(event, ${poster.userId})">
+                            💬 Message Poster
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+}
+

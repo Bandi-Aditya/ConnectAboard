@@ -1718,5 +1718,729 @@ a:hover {
     flex-shrink: 0;
 }
 
+/* ==========================================================================
+   Connections Page Redesign & Header Count Badge
+   ========================================================================== */
+.header-count-badge {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.search-connections-bar {
+    margin-bottom: 1.25rem;
+}
+
+.search-connections-bar input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.search-connections-bar input:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.connections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.social-profile-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.social-profile-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.social-card-header {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.social-card-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.social-card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.social-card-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.social-card-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-main);
+    cursor: pointer;
+    line-height: 1.3;
+}
+
+.social-card-name:hover {
+    color: var(--primary);
+}
+
+.social-card-profession {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.social-card-location, .social-card-college {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.15rem;
+}
+
+.social-card-bio {
+    font-size: 0.85rem;
+    color: var(--text-main);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    background: var(--bg-subtle);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+}
+
+.social-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* ==========================================================================
+   Circular Profile Completion Ring
+   ========================================================================== */
+.profile-completion-ring-container {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    margin: 0 auto 1rem auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-completion-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.profile-completion-svg circle {
+    fill: none;
+    stroke-width: 6;
+}
+
+.profile-completion-bg {
+    stroke: var(--border-color);
+}
+
+.profile-completion-progress {
+    stroke: var(--primary);
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.6s ease;
+}
+
+.profile-completion-avatar {
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 2.2rem;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.profile-completion-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.completion-check-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 6px;
+    background: #10b981;
+    color: white;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: bold;
+    border: 2px solid white;
+    z-index: 2;
+    box-shadow: var(--shadow-sm);
+}
+
+.completion-percent-label {
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-top: 0.25rem;
+}
+
+/* ==========================================================================
+   Phase 5 Messaging & Chat UI
+   ========================================================================== */
+.messaging-container {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: calc(100vh - 140px);
+    min-height: 520px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 768px) {
+    .messaging-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.conversations-sidebar {
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+}
+
+.conv-header {
+    padding: 1rem 1.25rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-surface);
+}
+
+.conv-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.conv-item {
+    display: flex;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.conv-item:hover {
+    background-color: var(--bg-subtle);
+}
+
+.conv-item.active {
+    background-color: var(--primary-light);
+    border-left: 4px solid var(--primary);
+}
+
+.conv-item-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.conv-item-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.conv-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.conv-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.conv-item-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.conv-item-time {
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+
+.conv-item-preview {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.2rem;
+}
+
+.conv-unread-badge {
+    background-color: var(--primary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: var(--radius-full);
+    padding: 0.1rem 0.45rem;
+    margin-left: 0.5rem;
+}
+
+.chat-area {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-main);
+    height: 100%;
+}
+
+.chat-header {
+    padding: 0.85rem 1.25rem;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.chat-header-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+.chat-header-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.chat-message-row {
+    display: flex;
+    flex-direction: column;
+    max-width: 70%;
+}
+
+.chat-message-row.sent {
+    align-self: flex-end;
+}
+
+.chat-message-row.received {
+    align-self: flex-start;
+}
+
+.chat-bubble {
+    padding: 0.65rem 0.95rem;
+    border-radius: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    word-wrap: break-word;
+    box-shadow: var(--shadow-sm);
+}
+
+.chat-message-row.sent .chat-bubble {
+    background-color: var(--primary);
+    color: #ffffff;
+    border-bottom-right-radius: 0.2rem;
+}
+
+.chat-message-row.received .chat-bubble {
+    background-color: var(--bg-surface);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-bottom-left-radius: 0.2rem;
+}
+
+.chat-message-meta {
+    font-size: 0.7rem;
+    color: var(--text-light);
+    margin-top: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.chat-message-row.sent .chat-message-meta {
+    align-self: flex-end;
+}
+
+.chat-message-row.received .chat-message-meta {
+    align-self: flex-start;
+}
+
+.chat-input-box {
+    padding: 0.85rem 1.25rem;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.chat-input-box input {
+    flex: 1;
+    padding: 0.65rem 1rem;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.chat-input-box input:focus {
+    border-color: var(--primary);
+}
+
+/* ==========================================================================
+   Phase 7 — Jobs & Opportunities Styles
+   ========================================================================== */
+.jobs-header-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.jobs-header-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.jobs-header-title h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.jobs-header-title p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.jobs-tabs {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.jobs-tabs .tab-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.jobs-tabs .tab-btn:hover {
+    color: var(--primary);
+}
+
+.jobs-tabs .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.jobs-filter-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    margin-top: 1rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.jobs-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.job-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.job-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-hover);
+}
+
+.job-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.job-poster-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.job-poster-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    object-fit: cover;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.job-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.job-title:hover {
+    color: var(--primary);
+}
+
+.job-company {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.job-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.job-badge {
+    padding: 0.25rem 0.65rem;
+    border-radius: var(--radius-full);
+    font-size: 0.78rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.job-badge.type-fulltime { background: #eff6ff; color: #1d4ed8; }
+.job-badge.type-parttime { background: #fef3c7; color: #b45309; }
+.job-badge.type-contract { background: #f3e8ff; color: #6b21a8; }
+.job-badge.type-internship { background: #ecfdf5; color: #047857; }
+.job-badge.work-onsite { background: #f1f5f9; color: #475569; }
+.job-badge.work-remote { background: #e0e7ff; color: #3730a3; }
+.job-badge.work-hybrid { background: #fae8ff; color: #86198f; }
+
+.badge-status-active { background: #dcfce7; color: #15803d; font-weight: 700; }
+.badge-status-closed { background: #fee2e2; color: #b91c1c; font-weight: 700; }
+
+.job-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.job-skill-chip {
+    background: var(--bg-subtle);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.job-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.job-time {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.btn-save-job {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-save-job:hover, .btn-save-job.saved {
+    background: #fef2f2;
+    color: var(--danger);
+    border-color: #fca5a5;
+}
+
+/* Feed Job Opportunity Card */
+.feed-job-card {
+    border-left: 4px solid var(--primary);
+    background: linear-gradient(to right, #f8fafc, #ffffff);
+}
+
+.clickable-user {
+    cursor: pointer;
+}
+
+.clickable-user:hover {
+    text-decoration: underline;
+    color: var(--primary);
+}
+
+/* Profile Tabs */
+.profile-tabs-header {
+    display: flex;
+    gap: 1rem;
+    border-bottom: 2px solid var(--border-color);
+    margin-top: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.profile-tab-btn {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+}
+
+.profile-tab-btn:hover {
+    color: var(--primary);
+}
+
+.profile-tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+
+
 
 

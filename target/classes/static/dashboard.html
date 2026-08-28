@@ -29,24 +29,22 @@
             </button>
 
             <div class="user-dropdown-container">
-                <div class="user-profile-trigger" id="userProfileTrigger">
+                <div class="user-profile-trigger" id="userProfileTrigger" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
                     <div class="avatar-circle" id="navUserAvatar">CA</div>
                     <span class="trigger-name" id="navUserName">User</span>
                     <span style="font-size: 0.75rem; color: var(--text-muted);">▼</span>
                 </div>
 
                 <div class="dropdown-menu" id="userDropdown">
-                    <div class="dropdown-item" onclick="switchView('profile')">👤 My Profile</div>
-                    <div class="dropdown-item" onclick="switchView('connections')">🤝 My Connections</div>
-                    <div class="dropdown-item" onclick="openEditProfileModal()">✏️ Edit Profile</div>
+                    <div class="dropdown-item" id="menuMyProfile" style="cursor: pointer;">👤 My Profile</div>
+                    <div class="dropdown-item" id="menuEditProfile" style="cursor: pointer;">✏️ Edit Profile</div>
+                    <div class="dropdown-item" id="menuConnections" style="cursor: pointer;">🤝 Connections</div>
+                    <div class="dropdown-item" id="menuMessages" style="cursor: pointer;">💬 Messages</div>
+                    <div class="dropdown-item" id="menuMyJobs" style="cursor: pointer;">💼 My Jobs</div>
+                    <div class="dropdown-item" id="menuSavedJobs" style="cursor: pointer;">🔖 Saved Jobs</div>
+                    <div class="dropdown-item" id="menuSettings" style="cursor: pointer;">⚙️ Settings</div>
                     <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" onclick="switchView('home')">🏠 Home Feed</div>
-                    <div class="dropdown-item" onclick="switchView('people')">👥 People Directory</div>
-                    <div class="dropdown-item" onclick="switchView('messages')">💬 Direct Messages</div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" id="devPageAction">🛠️ Developer API Page</div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" id="logoutAction" style="color: var(--danger-text);">🚪 Logout</div>
+                    <div class="dropdown-item" id="logoutAction" style="color: var(--danger-text); cursor: pointer;">🚪 Logout</div>
                 </div>
             </div>
         </div>
@@ -71,14 +69,14 @@
                     <li class="nav-item" data-view="explore">
                         <span class="nav-item-icon">🌎</span> Explore Communities
                     </li>
-                    <li class="nav-item" data-view="jobs">
-                        <span class="nav-item-icon">💼</span> Part-Time Jobs
+                    <li class="nav-item" onclick="window.location.href='/jobs.html'">
+                        <span class="nav-item-icon">💼</span> Jobs & Opportunities
                     </li>
                     <li class="nav-item" data-view="housing">
                         <span class="nav-item-icon">🏠</span> Housing & Rooms
                     </li>
                     <li class="nav-item" data-view="messages">
-                        <span class="nav-item-icon">💬</span> Direct Messages
+                        <span class="nav-item-icon">💬</span> Direct Messages <span class="badge-pill" id="sidebarMessagesBadge" style="margin-left:auto; display:none;">0</span>
                     </li>
                     <li class="nav-item" data-view="explore">
                         <span class="nav-item-icon">🎓</span> College Communities
@@ -111,22 +109,29 @@
                     <p class="welcome-subtitle">Discover people, opportunities, and communities connected to your abroad journey.</p>
                 </div>
 
-                <!-- Profile Completion Widget (Rendered dynamically if incomplete) -->
-                <div id="profileCompletionWidget"></div>
-
                 <!-- Post Composer -->
                 <div class="post-composer-card">
-                    <div class="composer-top">
-                        <div class="avatar-circle" style="background-color: var(--primary);">YOU</div>
-                        <input type="text" id="composerTextarea" class="composer-input" placeholder="What's happening in your journey? Share tips, questions, or opportunities...">
-                    </div>
-                    <div class="composer-actions">
-                        <div class="composer-options">
-                            <button class="composer-opt-btn">📷 Photo</button>
-                            <button class="composer-opt-btn">📍 Location</button>
-                            <button class="composer-opt-btn">💼 Job Lead</button>
+                    <div class="composer-top" style="align-items: flex-start;">
+                        <div class="avatar-circle" id="composerUserAvatar" style="background-color: var(--primary); flex-shrink: 0;">YOU</div>
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+                            <textarea id="composerTextarea" class="form-control" rows="3" placeholder="What's happening in your abroad journey? Share tips, questions, or opportunities..."></textarea>
+                            
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <input type="text" id="composerImageUrlInput" class="form-control" style="flex: 1; font-size: 0.85rem;" placeholder="Optional Image URL (https://...)">
+                                <select id="composerPostTypeSelect" class="form-control" style="width: auto; font-size: 0.85rem; font-weight: 600;">
+                                    <option value="GENERAL">📢 General Update</option>
+                                    <option value="ABROAD_EXPERIENCE">✈️ Abroad Experience</option>
+                                    <option value="QUESTION">❓ Question</option>
+                                    <option value="ADVICE">💡 Advice</option>
+                                    <option value="JOB">💼 Job Opportunity</option>
+                                    <option value="HOUSING">🏠 Housing / Accommodation</option>
+                                    <option value="EVENT">📅 Community Event</option>
+                                </select>
+                            </div>
                         </div>
-                        <button class="btn-primary" id="submitPostBtn">Post Update</button>
+                    </div>
+                    <div class="composer-actions" style="margin-top: 0.75rem; justify-content: flex-end;">
+                        <button class="btn-primary" id="submitPostBtn">Publish Post</button>
                     </div>
                 </div>
 
@@ -499,7 +504,8 @@
     <div id="toastContainer" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/js/mockData.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>

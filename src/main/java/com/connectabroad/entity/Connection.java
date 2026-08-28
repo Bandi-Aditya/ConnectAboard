@@ -1,3 +1,4 @@
+
 package com.connectabroad.entity;
 
 import jakarta.persistence.*;
@@ -7,12 +8,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-    name = "connections",
-    uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"sender_id", "receiver_id"})
-    }
-)
+@Table(name = "connections", uniqueConstraints = {
+        @UniqueConstraint(columnNames = { "sender_id", "receiver_id" })
+})
 public class Connection {
 
     @Id

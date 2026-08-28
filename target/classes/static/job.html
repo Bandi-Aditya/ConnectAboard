@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Details - ConnectAbroad</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar">
+        <div class="nav-brand" onclick="window.location.href='/dashboard.html'">
+            <div class="brand-icon">CA</div>
+            <div class="brand-name">Connect<span>Abroad</span></div>
+        </div>
+
+        <div class="nav-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearchInput" class="search-input" placeholder="Search jobs, people, colleges...">
+        </div>
+
+        <div class="nav-actions">
+            <button class="nav-icon-btn" title="Notifications" onclick="window.location.href='/connections.html'">
+                🔔 <span class="nav-badge" id="navNotificationBadge" style="display: none;"></span>
+            </button>
+            <button class="nav-icon-btn" title="Messages" onclick="window.location.href='/dashboard.html?view=messages'">
+                💬
+            </button>
+
+            <div class="user-dropdown-container">
+                <div class="user-profile-trigger" id="userProfileTrigger">
+                    <div class="avatar-circle" id="navUserAvatar">CA</div>
+                    <span class="trigger-name" id="navUserName">User</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">▼</span>
+                </div>
+
+                <div class="dropdown-menu" id="userDropdown">
+                    <div class="dropdown-item" id="menuMyProfile">👤 My Profile</div>
+                    <div class="dropdown-item" id="menuEditProfile">✏️ Edit Profile</div>
+                    <div class="dropdown-item" id="menuConnections">🤝 Connections</div>
+                    <div class="dropdown-item" id="menuMessages">💬 Messages</div>
+                    <div class="dropdown-item" id="menuMyJobs">💼 My Jobs</div>
+                    <div class="dropdown-item" id="menuSavedJobs">🔖 Saved Jobs</div>
+                    <div class="dropdown-item" id="menuSettings">⚙️ Settings</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" id="logoutAction" style="color: var(--danger-text);">🚪 Logout</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- App Layout -->
+    <div class="app-layout">
+        
+        <!-- Left Sidebar Navigation -->
+        <aside class="left-sidebar">
+            <div class="sidebar-card">
+                <ul class="nav-menu">
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html'">
+                        <span class="nav-item-icon">🏠</span> Home Feed
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=people'">
+                        <span class="nav-item-icon">👥</span> People Directory
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/connections.html'">
+                        <span class="nav-item-icon">🤝</span> My Connections
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=messages'">
+                        <span class="nav-item-icon">💬</span> Direct Messages
+                    </li>
+                    <li class="nav-item active" onclick="window.location.href='/jobs.html'">
+                        <span class="nav-item-icon">💼</span> Jobs & Opportunities
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Mini User Profile -->
+            <div class="user-mini-profile" id="miniUserProfileBox" style="cursor: pointer;">
+                <div class="avatar-circle" id="miniUserAvatar">CA</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="mini-name" id="miniUserName">User</div>
+                    <div class="mini-status" id="miniUserStatus">Connected</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div style="margin-bottom: 1rem;">
+                <button class="btn-secondary" onclick="window.location.href='/jobs.html'">← Back to Jobs</button>
+            </div>
+
+            <div id="jobDetailContainer">
+                <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    Loading job opportunity details...
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar (Job Poster Profile Box) -->
+        <aside class="right-sidebar">
+            <div class="widget-card" id="jobPosterWidget">
+                <div class="widget-title">
+                    <span>Job Posted By</span>
+                </div>
+                <div id="jobPosterDetails" style="margin-top: 1rem;">
+                    <div style="color: var(--text-muted); font-size: 0.88rem;">Loading poster details...</div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initJobDetailPage();
+        });
+    </script>
+</body>
+</html>

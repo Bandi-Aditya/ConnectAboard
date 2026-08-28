@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jobs & Opportunities - ConnectAbroad</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar">
+        <div class="nav-brand" onclick="window.location.href='/dashboard.html'">
+            <div class="brand-icon">CA</div>
+            <div class="brand-name">Connect<span>Abroad</span></div>
+        </div>
+
+        <div class="nav-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearchInput" class="search-input" placeholder="Search jobs, people, colleges...">
+        </div>
+
+        <div class="nav-actions">
+            <button class="nav-icon-btn" title="Notifications" onclick="window.location.href='/connections.html'">
+                🔔 <span class="nav-badge" id="navNotificationBadge" style="display: none;"></span>
+            </button>
+            <button class="nav-icon-btn" title="Messages" onclick="window.location.href='/dashboard.html?view=messages'">
+                💬
+            </button>
+
+            <div class="user-dropdown-container">
+                <div class="user-profile-trigger" id="userProfileTrigger">
+                    <div class="avatar-circle" id="navUserAvatar">CA</div>
+                    <span class="trigger-name" id="navUserName">User</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">▼</span>
+                </div>
+
+                <div class="dropdown-menu" id="userDropdown">
+                    <div class="dropdown-item" id="menuMyProfile">👤 My Profile</div>
+                    <div class="dropdown-item" id="menuEditProfile">✏️ Edit Profile</div>
+                    <div class="dropdown-item" id="menuConnections">🤝 Connections</div>
+                    <div class="dropdown-item" id="menuMessages">💬 Messages</div>
+                    <div class="dropdown-item" id="menuMyJobs">💼 My Jobs</div>
+                    <div class="dropdown-item" id="menuSavedJobs">🔖 Saved Jobs</div>
+                    <div class="dropdown-item" id="menuSettings">⚙️ Settings</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" id="logoutAction" style="color: var(--danger-text);">🚪 Logout</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- App Layout -->
+    <div class="app-layout">
+        
+        <!-- Left Sidebar Navigation -->
+        <aside class="left-sidebar">
+            <div class="sidebar-card">
+                <ul class="nav-menu">
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html'">
+                        <span class="nav-item-icon">🏠</span> Home Feed
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=people'">
+                        <span class="nav-item-icon">👥</span> People Directory
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/connections.html'">
+                        <span class="nav-item-icon">🤝</span> My Connections
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=messages'">
+                        <span class="nav-item-icon">💬</span> Direct Messages
+                    </li>
+                    <li class="nav-item active" onclick="window.location.href='/jobs.html'">
+                        <span class="nav-item-icon">💼</span> Jobs & Opportunities
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Mini User Profile -->
+            <div class="user-mini-profile" id="miniUserProfileBox" style="cursor: pointer;">
+                <div class="avatar-circle" id="miniUserAvatar">CA</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="mini-name" id="miniUserName">User</div>
+                    <div class="mini-status" id="miniUserStatus">Connected</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="jobs-header-card">
+                <div class="jobs-header-title">
+                    <div>
+                        <h2>💼 Jobs & Opportunities</h2>
+                        <p>Discover roles posted by expats and local businesses around the world.</p>
+                    </div>
+                    <button class="btn-primary" onclick="openPostJobModal()">+ Post Opportunity</button>
+                </div>
+
+                <!-- Tabs -->
+                <div class="jobs-tabs">
+                    <button class="tab-btn active" id="tabAllJobs" onclick="switchJobsTab('all')">🌐 All Opportunities</button>
+                    <button class="tab-btn" id="tabSavedJobs" onclick="switchJobsTab('saved')">🔖 Saved Jobs</button>
+                    <button class="tab-btn" id="tabMyJobs" onclick="switchJobsTab('my')">📋 My Posted Jobs</button>
+                </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="jobs-filter-card" id="jobsFilterCard">
+                <div class="jobs-filter-grid">
+                    <div class="filter-group" style="grid-column: span 2;">
+                        <input type="text" id="jobSearchInput" class="form-control" placeholder="🔍 Search keyword (e.g. Developer, Java, Restaurant...)">
+                    </div>
+                    <div class="filter-group">
+                        <select id="filterCountry" class="form-control">
+                            <option value="">All Countries</option>
+                            <option value="Canada">Canada</option>
+                            <option value="United States">United States</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="Australia">Australia</option>
+                            <option value="Germany">Germany</option>
+                            <option value="Ireland">Ireland</option>
+                            <option value="India">India</option>
+                            <option value="UAE">UAE</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <input type="text" id="filterCity" class="form-control" placeholder="City (e.g. Toronto)">
+                    </div>
+                    <div class="filter-group">
+                        <select id="filterEmploymentType" class="form-control">
+                            <option value="">All Employment Types</option>
+                            <option value="FULL_TIME">Full-time</option>
+                            <option value="PART_TIME">Part-time</option>
+                            <option value="CONTRACT">Contract</option>
+                            <option value="INTERNSHIP">Internship</option>
+                            <option value="TEMPORARY">Temporary</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <select id="filterWorkMode" class="form-control">
+                            <option value="">All Work Modes</option>
+                            <option value="ON_SITE">On-site</option>
+                            <option value="REMOTE">Remote</option>
+                            <option value="HYBRID">Hybrid</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="display: flex; gap: 0.5rem;">
+                        <button class="btn-primary" style="flex: 1;" onclick="applyJobFilters()">Filter</button>
+                        <button class="btn-secondary" onclick="resetJobFilters()">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jobs List Container -->
+            <div id="jobsFeedContainer" style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+                <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    Loading job opportunities...
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div id="jobsPagination" style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.5rem; margin-bottom: 2rem;"></div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="right-sidebar">
+            <div class="widget-card">
+                <div class="widget-title">
+                    <span>💡 Abroad Career Tips</span>
+                </div>
+                <div style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                    <div>• Connect directly with job posters for referrals.</div>
+                    <div>• Make sure your profile details are complete before contacting posters.</div>
+                    <div>• Share local part-time & full-time openings to help fellow students and job seekers.</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Create Job Modal -->
+    <div id="postJobModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-card" style="max-width: 640px;">
+            <div class="modal-header">
+                <h3 class="modal-title">💼 Post a Job Opportunity</h3>
+                <button type="button" class="modal-close-btn" onclick="closePostJobModal()">✕</button>
+            </div>
+            <form id="postJobForm" onsubmit="handlePostJobSubmit(event)">
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-group-full">
+                            <label for="jobTitleInput">Job Title *</label>
+                            <input type="text" id="jobTitleInput" class="form-control" placeholder="e.g. Software Engineer or Part-time Restaurant Assistant" required>
+                        </div>
+                        <div class="form-group-full">
+                            <label for="jobCompanyInput">Company / Business Name *</label>
+                            <input type="text" id="jobCompanyInput" class="form-control" placeholder="e.g. Tech Solutions or Sharma Indian Restaurant" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobCountryInput">Country *</label>
+                            <select id="jobCountryInput" class="form-control" required>
+                                <option value="Canada">Canada</option>
+                                <option value="United States">United States</option>
+                                <option value="United Kingdom">United Kingdom</option>
+                                <option value="Australia">Australia</option>
+                                <option value="Germany">Germany</option>
+                                <option value="Ireland">Ireland</option>
+                                <option value="India">India</option>
+                                <option value="UAE">UAE</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobCityInput">City *</label>
+                            <input type="text" id="jobCityInput" class="form-control" placeholder="e.g. Toronto or Melbourne" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobEmpTypeInput">Employment Type *</label>
+                            <select id="jobEmpTypeInput" class="form-control" required>
+                                <option value="FULL_TIME">Full-time</option>
+                                <option value="PART_TIME">Part-time</option>
+                                <option value="CONTRACT">Contract</option>
+                                <option value="INTERNSHIP">Internship</option>
+                                <option value="TEMPORARY">Temporary</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobWorkModeInput">Work Mode *</label>
+                            <select id="jobWorkModeInput" class="form-control" required>
+                                <option value="ON_SITE">On-site</option>
+                                <option value="REMOTE">Remote</option>
+                                <option value="HYBRID">Hybrid</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobSalaryMin">Salary Min (Annual/Hourly)</label>
+                            <input type="number" id="jobSalaryMin" class="form-control" placeholder="e.g. 60000">
+                        </div>
+                        <div class="form-group">
+                            <label for="jobSalaryMax">Salary Max</label>
+                            <input type="number" id="jobSalaryMax" class="form-control" placeholder="e.g. 85000">
+                        </div>
+                        <div class="form-group">
+                            <label for="jobCurrency">Currency</label>
+                            <select id="jobCurrency" class="form-control">
+                                <option value="CAD">CAD ($)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="AUD">AUD ($)</option>
+                                <option value="GBP">GBP (£)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="INR">INR (₹)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="jobExperience">Experience Required</label>
+                            <input type="text" id="jobExperience" class="form-control" placeholder="e.g. 1-3 years or Entry Level">
+                        </div>
+                        <div class="form-group-full">
+                            <label for="jobSkills">Required Skills (Comma-separated)</label>
+                            <input type="text" id="jobSkills" class="form-control" placeholder="e.g. Java, Spring Boot, Customer Support, SQL">
+                        </div>
+                        <div class="form-group">
+                            <label for="jobAppUrl">Application URL (Optional)</label>
+                            <input type="url" id="jobAppUrl" class="form-control" placeholder="https://careers.example.com/job/123">
+                        </div>
+                        <div class="form-group">
+                            <label for="jobContactEmail">Contact Email (Optional)</label>
+                            <input type="email" id="jobContactEmail" class="form-control" placeholder="careers@example.com">
+                        </div>
+                        <div class="form-group-full">
+                            <label for="jobDescInput">Detailed Job Description *</label>
+                            <textarea id="jobDescInput" class="form-control" rows="5" placeholder="Provide full details about responsibilities, qualifications, how to apply, and team culture..." required></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closePostJobModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Post Opportunity</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initJobsPage();
+        });
+    </script>
+</body>
+</html>

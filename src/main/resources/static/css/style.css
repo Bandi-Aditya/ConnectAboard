@@ -2185,6 +2185,262 @@ a:hover {
     border-color: var(--primary);
 }
 
+/* ==========================================================================
+   Phase 7 — Jobs & Opportunities Styles
+   ========================================================================== */
+.jobs-header-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.jobs-header-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.jobs-header-title h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.jobs-header-title p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.jobs-tabs {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.jobs-tabs .tab-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.jobs-tabs .tab-btn:hover {
+    color: var(--primary);
+}
+
+.jobs-tabs .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.jobs-filter-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    margin-top: 1rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.jobs-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.job-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.job-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-hover);
+}
+
+.job-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.job-poster-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.job-poster-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    object-fit: cover;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.job-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.job-title:hover {
+    color: var(--primary);
+}
+
+.job-company {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.job-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.job-badge {
+    padding: 0.25rem 0.65rem;
+    border-radius: var(--radius-full);
+    font-size: 0.78rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.job-badge.type-fulltime { background: #eff6ff; color: #1d4ed8; }
+.job-badge.type-parttime { background: #fef3c7; color: #b45309; }
+.job-badge.type-contract { background: #f3e8ff; color: #6b21a8; }
+.job-badge.type-internship { background: #ecfdf5; color: #047857; }
+.job-badge.work-onsite { background: #f1f5f9; color: #475569; }
+.job-badge.work-remote { background: #e0e7ff; color: #3730a3; }
+.job-badge.work-hybrid { background: #fae8ff; color: #86198f; }
+
+.badge-status-active { background: #dcfce7; color: #15803d; font-weight: 700; }
+.badge-status-closed { background: #fee2e2; color: #b91c1c; font-weight: 700; }
+
+.job-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.job-skill-chip {
+    background: var(--bg-subtle);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.job-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.job-time {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.btn-save-job {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-save-job:hover, .btn-save-job.saved {
+    background: #fef2f2;
+    color: var(--danger);
+    border-color: #fca5a5;
+}
+
+/* Feed Job Opportunity Card */
+.feed-job-card {
+    border-left: 4px solid var(--primary);
+    background: linear-gradient(to right, #f8fafc, #ffffff);
+}
+
+.clickable-user {
+    cursor: pointer;
+}
+
+.clickable-user:hover {
+    text-decoration: underline;
+    color: var(--primary);
+}
+
+/* Profile Tabs */
+.profile-tabs-header {
+    display: flex;
+    gap: 1rem;
+    border-bottom: 2px solid var(--border-color);
+    margin-top: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.profile-tab-btn {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+}
+
+.profile-tab-btn:hover {
+    color: var(--primary);
+}
+
+.profile-tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+
 
 
 

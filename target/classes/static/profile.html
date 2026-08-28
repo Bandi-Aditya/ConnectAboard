@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile - ConnectAbroad</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-navbar">
+        <div class="nav-brand" onclick="window.location.href='/dashboard.html'">
+            <div class="brand-icon">CA</div>
+            <div class="brand-name">Connect<span>Abroad</span></div>
+        </div>
+
+        <div class="nav-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearchInput" class="search-input" placeholder="Search people, colleges, cities...">
+        </div>
+
+        <div class="nav-actions">
+            <button class="nav-icon-btn" title="Notifications" onclick="window.location.href='/connections.html'">
+                🔔 <span class="nav-badge" id="navNotificationBadge"></span>
+            </button>
+            <button class="nav-icon-btn" title="Messages" onclick="window.location.href='/dashboard.html?view=messages'">
+                💬
+            </button>
+
+            <div class="user-dropdown-container">
+                <div class="user-profile-trigger" id="userProfileTrigger" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <div class="avatar-circle" id="navUserAvatar">CA</div>
+                    <span class="trigger-name" id="navUserName">User</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">▼</span>
+                </div>
+
+                <div class="dropdown-menu" id="userDropdown">
+                    <div class="dropdown-item" id="menuMyProfile" style="cursor: pointer;">👤 My Profile</div>
+                    <div class="dropdown-item" id="menuEditProfile" style="cursor: pointer;">✏️ Edit Profile</div>
+                    <div class="dropdown-item" id="menuConnections" style="cursor: pointer;">🤝 Connections</div>
+                    <div class="dropdown-item" id="menuMessages" style="cursor: pointer;">💬 Messages</div>
+                    <div class="dropdown-item" id="menuMyJobs" style="cursor: pointer;">💼 My Jobs</div>
+                    <div class="dropdown-item" id="menuSavedJobs" style="cursor: pointer;">🔖 Saved Jobs</div>
+                    <div class="dropdown-item" id="menuSettings" style="cursor: pointer;">⚙️ Settings</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" id="logoutAction" style="color: var(--danger-text); cursor: pointer;">🚪 Logout</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- App Layout -->
+    <div class="app-layout">
+        
+        <!-- Left Sidebar Navigation -->
+        <aside class="left-sidebar">
+            <div class="sidebar-card">
+                <ul class="nav-menu">
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html'">
+                        <span class="nav-item-icon">🏠</span> Home Feed
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=people'">
+                        <span class="nav-item-icon">👥</span> People Directory
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/connections.html'">
+                        <span class="nav-item-icon">🤝</span> My Connections
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/dashboard.html?view=messages'">
+                        <span class="nav-item-icon">💬</span> Direct Messages
+                    </li>
+                    <li class="nav-item" onclick="window.location.href='/jobs.html'">
+                        <span class="nav-item-icon">💼</span> Jobs & Opportunities
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Mini User Profile -->
+            <div class="user-mini-profile">
+                <div class="avatar-circle" id="miniUserAvatar">CA</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div class="mini-name" id="miniUserName">User</div>
+                    <div class="mini-status" id="miniUserStatus">Connected</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-view active" id="profilePageContent">
+                <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    Loading user profile...
+                </div>
+            </div>
+
+            <!-- Author Posts Timeline Section -->
+            <div style="margin-top: 1.5rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem;" id="userPostsHeading">Posts by User</h3>
+                <div id="userPostsTimelineContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <!-- Rendered dynamically -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="right-sidebar">
+            <div class="widget-card">
+                <div class="widget-title">
+                    <span>Explore Network</span>
+                </div>
+                <div style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.5rem;">
+                    Discover fellow alumni and community members across Canada, US, UK, Australia, and worldwide.
+                </div>
+                <button class="btn-secondary" style="width: 100%; margin-top: 1rem;" onclick="window.location.href='/dashboard.html?view=people'">👥 Find People</button>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div id="editProfileModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">✏️ Edit Your Profile</h3>
+                <button type="button" class="modal-close-btn" onclick="closeEditProfileModal()">✕</button>
+            </div>
+            <form id="editProfileForm">
+                <div class="modal-body">
+                    
+                    <!-- Basic Info -->
+                    <div class="form-section-title">Basic Information</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="profName">Full Name</label>
+                            <input type="text" id="profName" class="form-control" placeholder="e.g. Aditya Bandi" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="profPhoto">Profile Photo URL / Initials</label>
+                            <input type="text" id="profPhoto" class="form-control" placeholder="e.g. https://... or AB">
+                        </div>
+                        <div class="form-group-full">
+                            <label for="profBio">About / Bio</label>
+                            <textarea id="profBio" class="form-control" rows="3" placeholder="Share a short summary about your background and abroad aspirations..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Education -->
+                    <div class="form-section-title">Education</div>
+                    <div class="form-grid">
+                        <div class="form-group-full">
+                            <label for="profCollegeName">College / Institution</label>
+                            <input type="text" id="profCollegeName" class="form-control" placeholder="e.g. Sri Indu Institute of Engineering & Technology">
+                        </div>
+                        <div class="form-group">
+                            <label for="profDegree">Degree / Program</label>
+                            <input type="text" id="profDegree" class="form-control" placeholder="e.g. B.Tech Computer Science">
+                        </div>
+                        <div class="form-group">
+                            <label for="profGraduationYear">Graduation Year</label>
+                            <input type="number" id="profGraduationYear" class="form-control" placeholder="e.g. 2024" min="1950" max="2035">
+                        </div>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="form-section-title">Location & Hometown</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="profHometown">Hometown / Origin</label>
+                            <input type="text" id="profHometown" class="form-control" placeholder="e.g. Hyderabad, India">
+                        </div>
+                        <div class="form-group">
+                            <label for="profCurrentCountry">Current Country</label>
+                            <select id="profCurrentCountry" class="form-control">
+                                <option value="India">India</option>
+                                <option value="Canada">Canada</option>
+                                <option value="United States">United States</option>
+                                <option value="United Kingdom">United Kingdom</option>
+                                <option value="Australia">Australia</option>
+                                <option value="Germany">Germany</option>
+                                <option value="Ireland">Ireland</option>
+                                <option value="New Zealand">New Zealand</option>
+                                <option value="UAE">UAE</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="profCurrentCity">Current City</label>
+                            <input type="text" id="profCurrentCity" class="form-control" placeholder="e.g. Hyderabad or Toronto">
+                        </div>
+                    </div>
+
+                    <!-- Abroad Journey Fields -->
+                    <div class="form-section-title">Abroad Journey</div>
+                    <div class="form-grid">
+                        <div class="form-group" id="groupTargetCountry">
+                            <label for="profTargetCountry">Target Country</label>
+                            <select id="profTargetCountry" class="form-control">
+                                <option value="Canada">Canada</option>
+                                <option value="United States">United States</option>
+                                <option value="United Kingdom">United Kingdom</option>
+                                <option value="Australia">Australia</option>
+                                <option value="Germany">Germany</option>
+                                <option value="Ireland">Ireland</option>
+                                <option value="New Zealand">New Zealand</option>
+                                <option value="UAE">UAE</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="groupTargetCity">
+                            <label for="profTargetCity">Target City</label>
+                            <input type="text" id="profTargetCity" class="form-control" placeholder="e.g. Toronto or Melbourne">
+                        </div>
+                        <div class="form-group" id="groupTargetUniv">
+                            <label for="profTargetUniversity">Target University / Workplace</label>
+                            <input type="text" id="profTargetUniversity" class="form-control" placeholder="e.g. University of Toronto">
+                        </div>
+                    </div>
+
+                    <!-- Professional Information -->
+                    <div class="form-section-title">Professional Background</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="profProfession">Profession / Field</label>
+                            <input type="text" id="profProfession" class="form-control" placeholder="e.g. Software Developer or Student">
+                        </div>
+                        <div class="form-group">
+                            <label for="profExperienceYears">Experience (Years)</label>
+                            <input type="number" id="profExperienceYears" class="form-control" placeholder="e.g. 2" min="0">
+                        </div>
+                        <div class="form-group-full">
+                            <label for="profSkills">Key Skills (Comma Separated)</label>
+                            <input type="text" id="profSkills" class="form-control" placeholder="e.g. Java, Spring Boot, React, SQL">
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeEditProfileModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Profile</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initStandaloneProfilePage();
+        });
+    </script>
+</body>
+</html>

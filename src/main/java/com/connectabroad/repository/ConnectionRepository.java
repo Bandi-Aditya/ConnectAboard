@@ -27,4 +27,7 @@ public interface ConnectionRepository extends JpaRepository<Connection, Long> {
 
     @Query("SELECT COUNT(c) FROM Connection c WHERE (c.sender.id = :userId OR c.receiver.id = :userId) AND c.status = com.connectabroad.entity.ConnectionStatus.ACCEPTED")
     long countAcceptedConnectionsForUser(@Param("userId") Long userId);
+
+    @Query("SELECT CASE WHEN c.sender.id = :userId THEN c.receiver.id ELSE c.sender.id END FROM Connection c WHERE (c.sender.id = :userId OR c.receiver.id = :userId) AND c.status = com.connectabroad.entity.ConnectionStatus.ACCEPTED")
+    List<Long> findConnectedUserIds(@Param("userId") Long userId);
 }

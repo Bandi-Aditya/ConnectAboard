@@ -21,9 +21,11 @@ import org.springframework.web.bind.annotation.*;
 public class ProfileController {
 
     private final ProfileService profileService;
+    private final com.connectabroad.service.PostService postService;
 
-    public ProfileController(ProfileService profileService) {
+    public ProfileController(ProfileService profileService, com.connectabroad.service.PostService postService) {
         this.profileService = profileService;
+        this.postService = postService;
     }
 
     @PostMapping
@@ -51,7 +53,7 @@ public class ProfileController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping
+    @GetMapping({"", "/search", "/people"})
     public ResponseEntity<PageResponse<PublicProfileResponse>> getProfiles(
             Authentication authentication,
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -140,5 +142,16 @@ public class ProfileController {
         } else {
             return ResponseEntity.ok(profileService.getPublicProfile(userId));
         }
+    }
+
+    @GetMapping("/{id:\\d+}/posts")
+    public ResponseEntity<PageResponse<com.connectabroad.dto.response.PostResponse>> getPostsByAuthor(
+            Authentication authentication,
+            @PathVariable("id") Long userId,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size) {
+        String currentUserEmail = (authentication != null) ? authentication.getName() : null;
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(postService.getPostsByAuthor(userId, currentUserEmail, pageable));
     }
 }

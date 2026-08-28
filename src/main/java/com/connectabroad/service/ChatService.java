@@ -163,7 +163,7 @@ public class ChatService {
 
     private ConversationResponse buildConversationResponse(Conversation conv, Long currentUserId) {
         User otherUser = conv.getOtherParticipant(currentUserId);
-        PublicProfileResponse otherProfile = profileService.getPublicProfileByUserId(otherUser.getId(), currentUserId);
+        PublicProfileResponse otherProfile = profileService.getPublicProfile(otherUser.getId());
 
         Optional<Message> latestMsgOpt = messageRepository.findLatestMessageByConversationId(conv.getId());
         String lastMessage = latestMsgOpt.map(m -> m.isDeleted() ? "[Message deleted]" : m.getContent()).orElse("No messages yet");
