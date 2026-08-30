@@ -199,6 +199,8 @@ function switchView(viewName) {
     } else if (viewName === 'profile') {
         if (currentUser) {
             window.location.href = `/profile.html?id=${currentUser.id}`;
+        } else {
+            window.location.href = '/profile.html?me=true';
         }
     } else if (viewName === 'messages') {
         loadConversationsView();
@@ -209,15 +211,48 @@ function setupDropdown() {
     const trigger = document.getElementById('userProfileTrigger');
     const dropdown = document.getElementById('userDropdown');
 
+    const closeAllDropdowns = () => {
+        if (dropdown) {
+            dropdown.classList.remove('show', 'active');
+        }
+    };
+
     if (trigger && dropdown) {
-        trigger.addEventListener('click', (e) => {
+        trigger.setAttribute('tabindex', '0');
+        trigger.setAttribute('role', 'button');
+        trigger.setAttribute('aria-expanded', 'false');
+
+        const toggleDropdown = (e) => {
             e.stopPropagation();
-            dropdown.classList.toggle('active');
+            const isOpen = dropdown.classList.contains('show') || dropdown.classList.contains('active');
+            if (isOpen) {
+                dropdown.classList.remove('show', 'active');
+                trigger.setAttribute('aria-expanded', 'false');
+            } else {
+                dropdown.classList.add('show', 'active');
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+        };
+
+        trigger.addEventListener('click', toggleDropdown);
+        trigger.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleDropdown(e);
+            }
         });
 
         document.addEventListener('click', (e) => {
             if (!dropdown.contains(e.target) && !trigger.contains(e.target)) {
-                dropdown.classList.remove('active');
+                closeAllDropdowns();
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeAllDropdowns();
+                trigger.setAttribute('aria-expanded', 'false');
             }
         });
     }
@@ -226,9 +261,13 @@ function setupDropdown() {
     if (menuMyProf) {
         menuMyProf.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             if (window.location.pathname.includes('/dashboard.html')) {
-                switchView('profile');
+                if (currentUser) {
+                    window.location.href = `/profile.html?id=${currentUser.id}`;
+                } else {
+                    window.location.href = '/profile.html?me=true';
+                }
             } else {
                 window.location.href = '/profile.html?me=true';
             }
@@ -239,7 +278,7 @@ function setupDropdown() {
     if (menuEditProf) {
         menuEditProf.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             openEditProfileModal();
         });
     }
@@ -248,7 +287,7 @@ function setupDropdown() {
     if (menuConn) {
         menuConn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             if (window.location.pathname.includes('/dashboard.html')) {
                 switchView('connections');
             } else {
@@ -261,7 +300,7 @@ function setupDropdown() {
     if (menuMsg) {
         menuMsg.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             if (window.location.pathname.includes('/dashboard.html')) {
                 switchView('messages');
             } else {
@@ -274,7 +313,7 @@ function setupDropdown() {
     if (menuMyJobs) {
         menuMyJobs.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             window.location.href = '/jobs.html?view=my';
         });
     }
@@ -283,7 +322,7 @@ function setupDropdown() {
     if (menuSavedJobs) {
         menuSavedJobs.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             window.location.href = '/jobs.html?view=saved';
         });
     }
@@ -292,7 +331,7 @@ function setupDropdown() {
     if (menuSet) {
         menuSet.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             openEditProfileModal();
         });
     }
@@ -301,7 +340,7 @@ function setupDropdown() {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdown) dropdown.classList.remove('active');
+            closeAllDropdowns();
             handleLogout();
         });
     }
@@ -391,6 +430,11 @@ async function initStandaloneProfilePage() {
             }
 
             fetchUserPostsTimeline(profile.userId || profile.id);
+
+            const editParam = urlParams.get('edit');
+            if (editParam === 'true') {
+                openEditProfileModal();
+            }
         } else {
             container.innerHTML = `
                 <div style="text-align: center; padding: 3rem; background: #ffffff; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
@@ -684,7 +728,10 @@ async function fetchProfileJobsTab(userId) {
 
 function openEditProfileModal() {
     const modal = document.getElementById('editProfileModal');
-    if (!modal) return;
+    if (!modal) {
+        window.location.href = '/profile.html?me=true&edit=true';
+        return;
+    }
 
     if (currentProfile) {
         const p = currentProfile;
@@ -1413,17 +1460,40 @@ function showToast(message, type = 'info') {
 
 async function updateNotificationBadge() {
     try {
-        const response = await authenticatedFetch('/api/connections/requests/count');
+        const response = await authenticatedFetch('/api/notifications/unread-count');
         if (response.ok) {
             const data = await response.json();
             const count = data.count || 0;
             const badge = document.getElementById('navNotificationBadge');
+            const navBtn = document.getElementById('navNotificationBtn');
+            const countText = count > 99 ? '99+' : count;
+
             if (badge) {
-                badge.innerText = count > 0 ? count : '';
-                badge.style.display = count > 0 ? 'inline-block' : 'none';
+                if (count > 0) {
+                    badge.innerText = countText;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.innerText = '';
+                    badge.style.display = 'none';
+                }
+            }
+
+            if (navBtn) {
+                const existingBadge = navBtn.querySelector('.nav-badge');
+                if (existingBadge) {
+                    if (count > 0) {
+                        existingBadge.innerText = countText;
+                        existingBadge.style.display = 'inline-flex';
+                    } else {
+                        existingBadge.innerText = '';
+                        existingBadge.style.display = 'none';
+                    }
+                }
             }
         }
-    } catch (err) {}
+    } catch (err) {
+        console.error('Error updating notification badge:', err);
+    }
 }
 
 async function handleSendConnectionRequest(event, targetUserId) {
@@ -1766,6 +1836,13 @@ function initStompClient() {
                 if (message.body) {
                     const msgResponse = JSON.parse(message.body);
                     handleIncomingChatMessage(msgResponse);
+                }
+            });
+
+            stompClient.subscribe(`/user/${currentUser.id}/queue/notifications`, (message) => {
+                if (message.body) {
+                    const notifResponse = JSON.parse(message.body);
+                    handleIncomingNotification(notifResponse);
                 }
             });
         }, (error) => {
@@ -2559,4 +2636,343 @@ function renderJobDetailPage(container, posterWidget, job) {
         `;
     }
 }
+
+/**
+ * ==========================================================================
+ * PHASE 8: Real-Time In-App Notification System Frontend Engine
+ * ==========================================================================
+ */
+
+function toggleNotificationDropdown(event) {
+    if (event) event.stopPropagation();
+    const dropdown = document.getElementById('notificationDropdown');
+    const userDropdown = document.getElementById('userDropdown');
+    if (userDropdown) userDropdown.style.display = 'none';
+
+    if (!dropdown) return;
+
+    const isShowing = dropdown.style.display === 'flex' || dropdown.style.display === 'block';
+    if (isShowing) {
+        dropdown.style.display = 'none';
+    } else {
+        dropdown.style.display = 'flex';
+        loadDropdownNotifications();
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('notificationDropdown');
+    const btn = document.getElementById('navNotificationBtn');
+    if (dropdown && dropdown.style.display !== 'none') {
+        if (!dropdown.contains(e.target) && (!btn || !btn.contains(e.target))) {
+            dropdown.style.display = 'none';
+        }
+    }
+});
+
+async function loadDropdownNotifications() {
+    const listContainer = document.getElementById('notificationDropdownList');
+    if (!listContainer) return;
+
+    listContainer.innerHTML = `<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.85rem;">Loading notifications...</div>`;
+
+    try {
+        const res = await authenticatedFetch('/api/notifications?page=0&size=5');
+        if (res.ok) {
+            const pageData = await res.json();
+            const notifications = pageData.content || [];
+            renderDropdownNotificationsList(notifications, listContainer);
+        } else {
+            listContainer.innerHTML = `<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.85rem;">Failed to load notifications</div>`;
+        }
+    } catch (err) {
+        console.error('Error loading dropdown notifications:', err);
+        listContainer.innerHTML = `<div style="padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.85rem;">Error loading notifications</div>`;
+    }
+}
+
+function renderDropdownNotificationsList(notifications, container) {
+    if (!notifications || notifications.length === 0) {
+        container.innerHTML = `<div style="padding: 2rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">No notifications yet</div>`;
+        return;
+    }
+
+    let html = '';
+    notifications.forEach(n => {
+        const icon = getNotificationIcon(n.type);
+        const actorName = n.actor ? escapeHtml(n.actor.name) : 'System';
+        const avatarHtml = n.actor && n.actor.profilePhoto
+            ? `<img src="${escapeHtml(n.actor.profilePhoto)}" alt="${actorName}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">`
+            : `<div class="avatar-circle" style="width:36px; height:36px; font-size:0.85rem;">${getInitials(actorName)}</div>`;
+
+        const relTime = formatRelativeTime(n.createdAt);
+        const unreadClass = !n.isRead ? 'unread' : '';
+
+        html += `
+            <div class="notification-item ${unreadClass}" onclick="handleNotificationItemClick(event, ${n.id}, '${n.referenceType}', ${n.referenceId}, ${n.isRead})">
+                <div class="notification-icon-wrapper">
+                    ${avatarHtml}
+                    <div class="notification-type-badge">${icon}</div>
+                </div>
+                <div class="notification-content">
+                    <div class="notification-title">${escapeHtml(n.title)}</div>
+                    <div class="notification-message">${escapeHtml(n.message)}</div>
+                    <div class="notification-time">${relTime}</div>
+                </div>
+                ${!n.isRead ? '<div class="notification-unread-dot"></div>' : ''}
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function getNotificationIcon(type) {
+    switch (type) {
+        case 'CONNECTION_REQUEST': return '👤';
+        case 'CONNECTION_ACCEPTED': return '👤';
+        case 'POST_LIKE': return '❤️';
+        case 'POST_COMMENT': return '💬';
+        case 'NEW_MESSAGE': return '📩';
+        case 'JOB_POSTED':
+        case 'JOB_RECOMMENDATION': return '💼';
+        default: return '🔔';
+    }
+}
+
+async function handleNotificationItemClick(event, notificationId, referenceType, referenceId, isRead) {
+    if (event) event.stopPropagation();
+
+    const dropdown = document.getElementById('notificationDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+
+    if (!isRead) {
+        try {
+            await authenticatedFetch(`/api/notifications/${notificationId}/read`, { method: 'PATCH' });
+            updateNotificationBadge();
+        } catch (err) {
+            console.error('Error marking notification as read:', err);
+        }
+    }
+
+    navigateNotificationDestination(referenceType, referenceId);
+}
+
+function navigateNotificationDestination(referenceType, referenceId) {
+    if (!referenceType || !referenceId) return;
+
+    if (referenceType === 'PROFILE') {
+        window.location.href = `/profile.html?id=${referenceId}`;
+    } else if (referenceType === 'POST') {
+        window.location.href = `/dashboard.html?post=${referenceId}`;
+    } else if (referenceType === 'CONNECTION') {
+        window.location.href = `/connections.html`;
+    } else if (referenceType === 'MESSAGE') {
+        window.location.href = `/dashboard.html?view=messages&userId=${referenceId}`;
+    } else if (referenceType === 'JOB') {
+        window.location.href = `/job.html?id=${referenceId}`;
+    } else {
+        window.location.href = `/dashboard.html`;
+    }
+}
+
+async function markAllNotificationsAsRead(event) {
+    if (event) event.stopPropagation();
+    try {
+        await authenticatedFetch('/api/notifications/read-all', { method: 'PATCH' });
+        updateNotificationBadge();
+
+        const dropdown = document.getElementById('notificationDropdown');
+        if (dropdown && dropdown.style.display !== 'none') {
+            loadDropdownNotifications();
+        }
+
+        if (window.location.pathname.includes('/notifications.html')) {
+            loadFullNotificationsPage(notifCurrentPage);
+        }
+        showToast('All notifications marked as read', 'success');
+    } catch (err) {
+        console.error('Error marking all notifications as read:', err);
+    }
+}
+
+function handleIncomingNotification(notification) {
+    updateNotificationBadge();
+
+    const icon = getNotificationIcon(notification.type);
+    showToast(`${icon} ${notification.message}`, 'info');
+
+    const dropdown = document.getElementById('notificationDropdown');
+    if (dropdown && dropdown.style.display !== 'none') {
+        loadDropdownNotifications();
+    }
+
+    if (window.location.pathname.includes('/notifications.html')) {
+        loadFullNotificationsPage(0);
+    }
+}
+
+let notifCurrentPage = 0;
+const notifPageSize = 15;
+
+async function initFullNotificationsPage() {
+    notifCurrentPage = 0;
+    await loadFullNotificationsPage(0);
+}
+
+async function loadFullNotificationsPage(page) {
+    const container = document.getElementById('fullNotificationList');
+    if (!container) return;
+
+    notifCurrentPage = page;
+    container.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">Loading notifications...</div>`;
+
+    try {
+        const res = await authenticatedFetch(`/api/notifications?page=${page}&size=${notifPageSize}`);
+        if (res.ok) {
+            const pageData = await res.json();
+            renderFullNotificationsList(pageData, container);
+            updateNotificationPaginationControls(pageData);
+        } else {
+            container.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">Failed to load notifications.</div>`;
+        }
+    } catch (err) {
+        console.error('Error loading full notifications page:', err);
+        container.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">Error loading notifications.</div>`;
+    }
+}
+
+function renderFullNotificationsList(pageData, container) {
+    const notifications = pageData.content || [];
+    if (notifications.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 3rem 1rem;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔔</div>
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem;">No notifications found</h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">You're all caught up!</p>
+            </div>
+        `;
+        return;
+    }
+
+    const today = [];
+    const yesterday = [];
+    const earlier = [];
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - (24 * 60 * 60 * 1000);
+
+    notifications.forEach(n => {
+        const time = new Date(n.createdAt).getTime();
+        if (time >= startOfToday) {
+            today.push(n);
+        } else if (time >= startOfYesterday) {
+            yesterday.push(n);
+        } else {
+            earlier.push(n);
+        }
+    });
+
+    let html = '';
+
+    if (today.length > 0) {
+        html += `<div class="notification-section-header">TODAY</div>`;
+        today.forEach(n => html += renderFullNotificationCard(n));
+    }
+
+    if (yesterday.length > 0) {
+        html += `<div class="notification-section-header">YESTERDAY</div>`;
+        yesterday.forEach(n => html += renderFullNotificationCard(n));
+    }
+
+    if (earlier.length > 0) {
+        html += `<div class="notification-section-header">EARLIER</div>`;
+        earlier.forEach(n => html += renderFullNotificationCard(n));
+    }
+
+    container.innerHTML = html;
+}
+
+function renderFullNotificationCard(n) {
+    const icon = getNotificationIcon(n.type);
+    const actorName = n.actor ? escapeHtml(n.actor.name) : 'System';
+    const avatarHtml = n.actor && n.actor.profilePhoto
+        ? `<img src="${escapeHtml(n.actor.profilePhoto)}" alt="${actorName}" style="width:42px; height:42px; border-radius:50%; object-fit:cover;">`
+        : `<div class="avatar-circle" style="width:42px; height:42px; font-size:1rem;">${getInitials(actorName)}</div>`;
+
+    const relTime = formatRelativeTime(n.createdAt);
+    const unreadClass = !n.isRead ? 'unread' : '';
+
+    return `
+        <div class="notification-item ${unreadClass}" style="padding: 1rem;" onclick="handleNotificationItemClick(event, ${n.id}, '${n.referenceType}', ${n.referenceId}, ${n.isRead})">
+            <div class="notification-icon-wrapper">
+                ${avatarHtml}
+                <div class="notification-type-badge">${icon}</div>
+            </div>
+            <div class="notification-content">
+                <div class="notification-title" style="font-size: 0.95rem;">${escapeHtml(n.title)}</div>
+                <div class="notification-message" style="font-size: 0.88rem; color: var(--text-main); margin-top: 0.15rem;">${escapeHtml(n.message)}</div>
+                <div class="notification-time" style="margin-top: 0.35rem;">${relTime}</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                ${!n.isRead ? '<div class="notification-unread-dot" style="width: 10px; height: 10px;"></div>' : ''}
+                <button onclick="deleteSingleNotification(event, ${n.id})" title="Delete notification" style="background: none; border: none; font-size: 0.9rem; color: var(--text-light); cursor: pointer; padding: 0.25rem;">🗑️</button>
+            </div>
+        </div>
+    `;
+}
+
+async function deleteSingleNotification(event, notificationId) {
+    if (event) event.stopPropagation();
+    try {
+        const res = await authenticatedFetch(`/api/notifications/${notificationId}`, { method: 'DELETE' });
+        if (res.ok) {
+            updateNotificationBadge();
+            loadFullNotificationsPage(notifCurrentPage);
+            showToast('Notification deleted', 'success');
+        }
+    } catch (err) {
+        console.error('Error deleting notification:', err);
+    }
+}
+
+function updateNotificationPaginationControls(pageData) {
+    const prevBtn = document.getElementById('notifPrevBtn');
+    const nextBtn = document.getElementById('notifNextBtn');
+    const indicator = document.getElementById('notifPageIndicator');
+
+    if (prevBtn) prevBtn.disabled = pageData.page === 0;
+    if (nextBtn) nextBtn.disabled = pageData.last;
+    if (indicator) {
+        const totalPages = pageData.totalPages === 0 ? 1 : pageData.totalPages;
+        indicator.innerText = `Page ${pageData.page + 1} of ${totalPages}`;
+    }
+}
+
+function changeNotificationPage(delta) {
+    const newPage = notifCurrentPage + delta;
+    if (newPage >= 0) {
+        loadFullNotificationsPage(newPage);
+    }
+}
+
+function formatRelativeTime(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffSec = Math.floor((now - date) / 1000);
+
+    if (diffSec < 60) return 'Just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour} hr ago`;
+    const diffDays = Math.floor(diffHour / 24);
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 

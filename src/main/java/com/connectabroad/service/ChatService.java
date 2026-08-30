@@ -22,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import com.connectabroad.entity.NotificationType;
+import com.connectabroad.entity.ReferenceType;
 import java.util.Optional;
 
 @Service
@@ -32,17 +34,20 @@ public class ChatService {
     private final ConnectionRepository connectionRepository;
     private final UserRepository userRepository;
     private final ProfileService profileService;
+    private final NotificationService notificationService;
 
     public ChatService(ConversationRepository conversationRepository,
                        MessageRepository messageRepository,
                        ConnectionRepository connectionRepository,
                        UserRepository userRepository,
-                       ProfileService profileService) {
+                       ProfileService profileService,
+                       NotificationService notificationService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.connectionRepository = connectionRepository;
         this.userRepository = userRepository;
         this.profileService = profileService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -141,6 +146,16 @@ public class ChatService {
 
         conversation.setUpdatedAt(LocalDateTime.now());
         conversationRepository.save(conversation);
+
+        notificationService.createNotification(
+                otherUser,
+                sender,
+                NotificationType.NEW_MESSAGE,
+                "New Message",
+                sender.getName() + " sent you a message.",
+                sender.getId(),
+                ReferenceType.MESSAGE
+        );
 
         return MessageResponse.fromEntity(savedMessage);
     }

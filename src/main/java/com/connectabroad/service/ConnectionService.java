@@ -5,6 +5,8 @@ import com.connectabroad.entity.Connection;
 import com.connectabroad.entity.ConnectionStatus;
 import com.connectabroad.entity.User;
 import com.connectabroad.exception.ResourceNotFoundException;
+import com.connectabroad.entity.NotificationType;
+import com.connectabroad.entity.ReferenceType;
 import com.connectabroad.repository.ConnectionRepository;
 import com.connectabroad.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -20,13 +22,16 @@ public class ConnectionService {
     private final ConnectionRepository connectionRepository;
     private final UserRepository userRepository;
     private final ProfileService profileService;
+    private final NotificationService notificationService;
 
     public ConnectionService(ConnectionRepository connectionRepository,
                              UserRepository userRepository,
-                             ProfileService profileService) {
+                             ProfileService profileService,
+                             NotificationService notificationService) {
         this.connectionRepository = connectionRepository;
         this.userRepository = userRepository;
         this.profileService = profileService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -59,12 +64,34 @@ public class ConnectionService {
                 existing.setReceiver(receiver);
                 existing.setStatus(ConnectionStatus.PENDING);
                 Connection saved = connectionRepository.save(existing);
+
+                notificationService.createNotification(
+                        receiver,
+                        sender,
+                        NotificationType.CONNECTION_REQUEST,
+                        "Connection Request",
+                        sender.getName() + " sent you a connection request.",
+                        sender.getId(),
+                        ReferenceType.PROFILE
+                );
+
                 return mapToConnectionResponse(saved, "Connection request sent.");
             }
         }
 
         Connection connection = new Connection(sender, receiver, ConnectionStatus.PENDING);
         Connection saved = connectionRepository.save(connection);
+
+        notificationService.createNotification(
+                receiver,
+                sender,
+                NotificationType.CONNECTION_REQUEST,
+                "Connection Request",
+                sender.getName() + " sent you a connection request.",
+                sender.getId(),
+                ReferenceType.PROFILE
+        );
+
         return mapToConnectionResponse(saved, "Connection request sent.");
     }
 
@@ -86,6 +113,19 @@ public class ConnectionService {
 
         connection.setStatus(ConnectionStatus.ACCEPTED);
         Connection updated = connectionRepository.save(connection);
+
+        // Send notification to the original sender
+        User sender = connection.getSender();
+        notificationService.createNotification(
+                sender,
+                user,
+                NotificationType.CONNECTION_ACCEPTED,
+                "Connection Accepted",
+                user.getName() + " accepted your connection request.",
+                user.getId(),
+                ReferenceType.PROFILE
+        );
+
         return mapToConnectionResponse(updated, "Connection request accepted.");
     }
 

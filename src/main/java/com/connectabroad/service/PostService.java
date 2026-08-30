@@ -29,19 +29,22 @@ public class PostService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ConnectionRepository connectionRepository;
+    private final NotificationService notificationService;
 
     public PostService(PostRepository postRepository,
                        PostLikeRepository postLikeRepository,
                        CommentRepository commentRepository,
                        UserRepository userRepository,
                        ProfileRepository profileRepository,
-                       ConnectionRepository connectionRepository) {
+                       ConnectionRepository connectionRepository,
+                       NotificationService notificationService) {
         this.postRepository = postRepository;
         this.postLikeRepository = postLikeRepository;
         this.commentRepository = commentRepository;
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.connectionRepository = connectionRepository;
+        this.notificationService = notificationService;
     }
 
     public PostResponse createPost(String userEmail, CreatePostRequest request) {
@@ -161,6 +164,18 @@ public class PostService {
 
         if (!postLikeRepository.existsByPostIdAndUserId(postId, currentUser.getId())) {
             postLikeRepository.save(new PostLike(post, currentUser));
+
+            if (!post.getAuthor().getId().equals(currentUser.getId())) {
+                notificationService.createNotification(
+                        post.getAuthor(),
+                        currentUser,
+                        NotificationType.POST_LIKE,
+                        "Post Liked",
+                        currentUser.getName() + " liked your post.",
+                        post.getId(),
+                        ReferenceType.POST
+                );
+            }
         }
     }
 
@@ -180,6 +195,18 @@ public class PostService {
 
         Comment comment = new Comment(post, currentUser, request.getContent());
         Comment savedComment = commentRepository.save(comment);
+
+        if (!post.getAuthor().getId().equals(currentUser.getId())) {
+            notificationService.createNotification(
+                    post.getAuthor(),
+                    currentUser,
+                    NotificationType.POST_COMMENT,
+                    "New Comment",
+                    currentUser.getName() + " commented on your post.",
+                    post.getId(),
+                    ReferenceType.POST
+            );
+        }
 
         return mapToCommentResponse(savedComment, currentUser.getId());
     }

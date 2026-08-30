@@ -21,9 +21,23 @@
         </div>
 
         <div class="nav-actions">
-            <button class="nav-icon-btn" title="Notifications" onclick="window.location.href='/connections.html'">
-                🔔 <span class="nav-badge" id="navNotificationBadge" style="display: none;"></span>
-            </button>
+            <div class="user-dropdown-container" style="position: relative;">
+                <button class="nav-icon-btn" id="navNotificationBtn" title="Notifications" onclick="toggleNotificationDropdown(event)" style="position: relative;">
+                    🔔 <span class="nav-badge" id="navNotificationBadge" style="display: none;"></span>
+                </button>
+                <div class="dropdown-menu notification-dropdown" id="notificationDropdown" style="display: none; position: absolute; top: calc(100% + 0.5rem); right: 0; width: 360px; max-height: 480px; background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); z-index: 1000; flex-direction: column; overflow: hidden; padding: 0;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; border-bottom: 1px solid var(--border-color, #e2e8f0); background: var(--bg-subtle, #f8fafc);">
+                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-main, #0f172a);">Notifications</span>
+                        <button onclick="markAllNotificationsAsRead(event)" style="background: none; border: none; font-size: 0.78rem; font-weight: 600; color: var(--primary-color, #3b82f6); cursor: pointer;">Mark all as read</button>
+                    </div>
+                    <div id="notificationDropdownList" style="overflow-y: auto; max-height: 340px;">
+                        <div style="padding: 1.5rem; text-align: center; color: var(--text-muted, #64748b); font-size: 0.85rem;">Loading notifications...</div>
+                    </div>
+                    <div style="padding: 0.75rem; text-align: center; border-top: 1px solid var(--border-color, #e2e8f0); background: var(--bg-subtle, #f8fafc);">
+                        <a href="/notifications.html" style="font-size: 0.85rem; font-weight: 600; color: var(--primary-color, #3b82f6); text-decoration: none;">View all notifications</a>
+                    </div>
+                </div>
+            </div>
             <button class="nav-icon-btn" title="Messages" onclick="window.location.href='/dashboard.html?view=messages'">
                 💬
             </button>

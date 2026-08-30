@@ -70,13 +70,13 @@ public class ProfileService {
         return mapToProfileResponse(savedProfile, user);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ProfileResponse getMyProfile(String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
 
         Profile profile = profileRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ProfileNotFoundException("Profile not found for user: " + userEmail));
+                .orElseGet(() -> profileRepository.save(new Profile(user)));
 
         return mapToProfileResponse(profile, user);
     }
@@ -87,7 +87,7 @@ public class ProfileService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
 
         Profile profile = profileRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ProfileNotFoundException("Profile not found for user: " + userEmail));
+                .orElseGet(() -> profileRepository.save(new Profile(user)));
 
         if (StringUtils.hasText(request.getName())) {
             user.setName(request.getName());
