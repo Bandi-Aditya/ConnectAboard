@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -23,4 +24,14 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     Page<Post> findByAuthorIdOrderByCreatedAtDesc(Long authorId, Pageable pageable);
 
     Page<Post> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    @Query("SELECT p FROM Post p WHERE " +
+           "(:keyword IS NULL OR LOWER(p.content) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(p.author.name) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "ORDER BY p.createdAt DESC")
+    Page<Post> findAdminPosts(@Param("keyword") String keyword, Pageable pageable);
+
+    @Query("SELECT CAST(p.createdAt AS date) as date, COUNT(p) as count " +
+           "FROM Post p WHERE p.createdAt >= :startDate " +
+           "GROUP BY CAST(p.createdAt AS date) ORDER BY CAST(p.createdAt AS date)")
+    List<Object[]> countNewPostsPerDay(@Param("startDate") LocalDateTime startDate);
 }

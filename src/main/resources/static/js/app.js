@@ -145,6 +145,26 @@ function updateHeaderUserInfo(user) {
             window.location.href = `/profile.html?id=${user.id}`;
         };
     }
+
+    if (user && user.role === 'ADMIN') {
+        const dropdown = document.getElementById('userDropdown');
+        if (dropdown && !document.getElementById('menuAdminPanel')) {
+            const adminItem = document.createElement('div');
+            adminItem.id = 'menuAdminPanel';
+            adminItem.className = 'dropdown-item';
+            adminItem.style.cursor = 'pointer';
+            adminItem.style.fontWeight = '600';
+            adminItem.style.color = '#3b82f6';
+            adminItem.innerHTML = '🛡️ Admin Panel';
+            adminItem.onclick = () => { window.location.href = '/admin.html'; };
+            const divider = dropdown.querySelector('.dropdown-divider');
+            if (divider) {
+                dropdown.insertBefore(adminItem, divider);
+            } else {
+                dropdown.appendChild(adminItem);
+            }
+        }
+    }
 }
 
 function getInitials(name) {

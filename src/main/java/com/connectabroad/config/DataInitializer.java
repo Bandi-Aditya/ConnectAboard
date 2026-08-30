@@ -1,13 +1,7 @@
 package com.connectabroad.config;
 
-import com.connectabroad.entity.College;
-import com.connectabroad.entity.Profile;
-import com.connectabroad.entity.Role;
-import com.connectabroad.entity.User;
-import com.connectabroad.entity.UserType;
-import com.connectabroad.repository.CollegeRepository;
-import com.connectabroad.repository.ProfileRepository;
-import com.connectabroad.repository.UserRepository;
+import com.connectabroad.entity.*;
+import com.connectabroad.repository.*;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -20,15 +14,27 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final CollegeRepository collegeRepository;
+    private final CommunityRepository communityRepository;
+    private final CommunityMemberRepository communityMemberRepository;
+    private final ReportRepository reportRepository;
+    private final AdminAuditLogRepository auditLogRepository;
     private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(UserRepository userRepository,
                            ProfileRepository profileRepository,
                            CollegeRepository collegeRepository,
+                           CommunityRepository communityRepository,
+                           CommunityMemberRepository communityMemberRepository,
+                           ReportRepository reportRepository,
+                           AdminAuditLogRepository auditLogRepository,
                            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.collegeRepository = collegeRepository;
+        this.communityRepository = communityRepository;
+        this.communityMemberRepository = communityMemberRepository;
+        this.reportRepository = reportRepository;
+        this.auditLogRepository = auditLogRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -50,8 +56,35 @@ public class DataInitializer implements CommandLineRunner {
                         "Australia"
                 )));
 
+        User admin = null;
+        if (!userRepository.existsByEmail("admin@example.com")) {
+            admin = new User(
+                    "Platform Administrator",
+                    "admin@example.com",
+                    passwordEncoder.encode("admin123"),
+                    Role.ADMIN,
+                    UserType.ABROAD
+            );
+            userRepository.save(admin);
+
+            Profile adminProfile = new Profile(admin);
+            adminProfile.setCollege(siiett);
+            adminProfile.setDegree("M.S. Computer Science");
+            adminProfile.setGraduationYear(2020);
+            adminProfile.setHometown("Hyderabad, India");
+            adminProfile.setCurrentCountry("United States");
+            adminProfile.setCurrentCity("San Francisco");
+            adminProfile.setProfession("Platform Admin");
+            adminProfile.setExperienceYears(5);
+            adminProfile.setBio("System Administrator for ConnectAbroad platform.");
+            profileRepository.save(adminProfile);
+        } else {
+            admin = userRepository.findByEmail("admin@example.com").orElse(null);
+        }
+
+        User arjun = null;
         if (!userRepository.existsByEmail("arjun@example.com")) {
-            User arjun = new User(
+            arjun = new User(
                     "Arjun Reddy",
                     "arjun@example.com",
                     passwordEncoder.encode("password123"),
@@ -73,10 +106,13 @@ public class DataInitializer implements CommandLineRunner {
             arjunProfile.setSkills("Java, Spring Boot, React, Microservices");
             arjunProfile.setBio("Software engineer currently working in Toronto. Happy to help students and alumni preparing for their move to Canada.");
             profileRepository.save(arjunProfile);
+        } else {
+            arjun = userRepository.findByEmail("arjun@example.com").orElse(null);
         }
 
+        User vivek = null;
         if (!userRepository.existsByEmail("vivek@example.com")) {
-            User vivek = new User(
+            vivek = new User(
                     "Vivek Reddy",
                     "vivek@example.com",
                     passwordEncoder.encode("password123"),
@@ -101,6 +137,8 @@ public class DataInitializer implements CommandLineRunner {
             vivekProfile.setSkills("Java, Spring Boot, SQL, Git");
             vivekProfile.setBio("Aspiring Master's student preparing for Toronto universities. Eager to connect with alumni already in Canada.");
             profileRepository.save(vivekProfile);
+        } else {
+            vivek = userRepository.findByEmail("vivek@example.com").orElse(null);
         }
 
         if (!userRepository.existsByEmail("priya@example.com")) {
@@ -154,6 +192,53 @@ public class DataInitializer implements CommandLineRunner {
             adityaProfile.setSkills("JavaScript, React, Node.js, Java");
             adityaProfile.setBio("Planning to move to Toronto for graduate studies. Looking to connect with seniors and professionals in Canada.");
             profileRepository.save(adityaProfile);
+        }
+
+        // Seed Sample Communities
+        if (communityRepository.count() == 0 && arjun != null) {
+            Community torontoInds = new Community(
+                    "Indians in Toronto & GTA",
+                    "Community for Indian students and working professionals living in Toronto and the GTA area.",
+                    "Regional Support",
+                    "Toronto, Canada",
+                    arjun
+            );
+            communityRepository.save(torontoInds);
+            communityMemberRepository.save(new CommunityMember(torontoInds, arjun));
+
+            Community techAbroad = new Community(
+                    "Tech & Software Professionals Abroad",
+                    "Networking hub for software engineers, product managers, and data scientists moving abroad.",
+                    "Career & Networking",
+                    "Global",
+                    arjun
+            );
+            communityRepository.save(techAbroad);
+            communityMemberRepository.save(new CommunityMember(techAbroad, arjun));
+        }
+
+        // Seed Sample Reports
+        if (reportRepository.count() == 0 && vivek != null) {
+            Report sampleReport = new Report(
+                    vivek,
+                    ReportTargetType.POST,
+                    1L,
+                    ReportReason.SPAM,
+                    "This post appears to contain promotional spam links."
+            );
+            reportRepository.save(sampleReport);
+        }
+
+        // Seed Initial Audit Log
+        if (auditLogRepository.count() == 0 && admin != null) {
+            AdminAuditLog initialLog = new AdminAuditLog(
+                    admin,
+                    "SYSTEM_INIT",
+                    "SYSTEM",
+                    0L,
+                    "Initial Phase 17 Admin Panel & Analytics system initialized."
+            );
+            auditLogRepository.save(initialLog);
         }
     }
 }

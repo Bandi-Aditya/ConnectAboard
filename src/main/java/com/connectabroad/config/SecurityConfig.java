@@ -50,6 +50,7 @@ public class SecurityConfig {
                                 "/profile.html",
                                 "/jobs.html",
                                 "/job.html",
+                                "/admin.html",
                                 "/dev.html",
                                 "/ws/**",
                                 "/css/**",
@@ -57,6 +58,7 @@ public class SecurityConfig {
                                 "/favicon.ico",
                                 "/error"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/users/me").authenticated()
                         .anyRequest().authenticated()
                 )

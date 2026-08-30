@@ -260,7 +260,7 @@ public class JobService {
         jobRepository.delete(job);
     }
 
-    private JobResponse mapToJobResponse(Job job, Long currentUserId) {
+    public JobResponse mapToJobResponse(Job job, Long currentUserId) {
         boolean isSaved = false;
         if (currentUserId != null) {
             isSaved = savedJobRepository.existsByUserIdAndJobId(currentUserId, job.getId());

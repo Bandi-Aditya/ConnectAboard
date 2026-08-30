@@ -100,14 +100,26 @@
                         userType: data.userType
                     }));
 
+                    const userRole = data.role ? (typeof data.role === 'string' ? data.role : data.role.name) : 'USER';
+                    console.log("Logged in user:", data.email, "Role:", userRole);
+
                     alertBox.style.backgroundColor = 'var(--success-bg)';
                     alertBox.style.color = 'var(--success-text)';
                     alertBox.style.border = '1px solid var(--success-border)';
-                    alertBox.innerText = 'Login successful! Redirecting to feed...';
-                    alertBox.style.display = 'block';
-                    setTimeout(() => {
-                        window.location.href = '/dashboard.html';
-                    }, 800);
+
+                    if (userRole === 'ADMIN' || userRole === 'ROLE_ADMIN') {
+                        alertBox.innerText = 'Login successful! Redirecting to Admin Dashboard...';
+                        alertBox.style.display = 'block';
+                        setTimeout(() => {
+                            window.location.href = '/admin.html';
+                        }, 800);
+                    } else {
+                        alertBox.innerText = 'Login successful! Redirecting to feed...';
+                        alertBox.style.display = 'block';
+                        setTimeout(() => {
+                            window.location.href = '/dashboard.html';
+                        }, 800);
+                    }
                 } else {
                     alertBox.style.backgroundColor = 'var(--danger-bg)';
                     alertBox.style.color = 'var(--danger-text)';

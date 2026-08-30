@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConnectAbroad - Admin Control Panel</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        :root {
+            --admin-bg: #0f172a;
+            --admin-card: #1e293b;
+            --admin-border: #334155;
+            --admin-primary: #3b82f6;
+            --admin-primary-hover: #2563eb;
+            --admin-text-main: #f8fafc;
+            --admin-text-muted: #94a3b8;
+            --admin-success: #10b981;
+            --admin-warning: #f59e0b;
+            --admin-danger: #ef4444;
+            --admin-sidebar-width: 260px;
+        }
+
+        body.admin-body {
+            background-color: var(--admin-bg);
+            color: var(--admin-text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* Sidebar Styling */
+        .admin-sidebar {
+            width: var(--admin-sidebar-width);
+            background-color: #0b1120;
+            border-right: 1px solid var(--admin-border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .admin-brand {
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-bottom: 1px solid var(--admin-border);
+        }
+
+        .admin-brand-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1rem;
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .admin-brand-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: -0.02em;
+        }
+        .admin-brand-title span {
+            color: var(--admin-primary);
+        }
+
+        .admin-nav {
+            padding: 1rem 0;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .admin-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            color: var(--admin-text-muted);
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .admin-nav-item:hover {
+            color: var(--admin-text-main);
+            background-color: rgba(255, 255, 255, 0.04);
+        }
+
+        .admin-nav-item.active {
+            color: var(--admin-primary);
+            background-color: rgba(59, 130, 246, 0.1);
+            border-left-color: var(--admin-primary);
+            font-weight: 600;
+        }
+
+        .admin-sidebar-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--admin-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .admin-profile-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .admin-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: var(--admin-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        /* Main Content Layout */
+        .admin-main {
+            margin-left: var(--admin-sidebar-width);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .admin-header {
+            height: 70px;
+            background-color: #0b1120;
+            border-bottom: 1px solid var(--admin-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+
+        .admin-header-title h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .admin-content {
+            padding: 2rem;
+            flex: 1;
+        }
+
+        /* Dashboard Cards Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background-color: var(--admin-card);
+            border: 1px solid var(--admin-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--admin-text-muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-icon {
+            font-size: 1.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: var(--admin-text-main);
+        }
+
+        /* Admin UI Components */
+        .admin-panel-card {
+            background-color: var(--admin-card);
+            border: 1px solid var(--admin-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card-header-flex {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        /* Filter Controls */
+        .admin-filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+        }
+
+        .admin-input, .admin-select {
+            background-color: #0b1120;
+            border: 1px solid var(--admin-border);
+            color: var(--admin-text-main);
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            outline: none;
+        }
+        .admin-input:focus, .admin-select:focus {
+            border-color: var(--admin-primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Data Tables */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.875rem;
+        }
+
+        .admin-table th {
+            background-color: #0b1120;
+            color: var(--admin-text-muted);
+            font-weight: 600;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--admin-border);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .admin-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--admin-border);
+            vertical-align: middle;
+        }
+
+        .admin-table tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Status Badges */
+        .status-pill {
+            display: inline-block;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .status-active, .status-resolved {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .status-suspended, .status-reviewing {
+            background-color: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .status-banned, .status-disabled {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .status-pending, .status-dismissed {
+            background-color: rgba(148, 163, 184, 0.15);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        /* Action Buttons */
+        .btn-admin {
+            padding: 0.45rem 0.85rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .btn-admin-primary {
+            background-color: var(--admin-primary);
+            color: #ffffff;
+        }
+        .btn-admin-primary:hover {
+            background-color: var(--admin-primary-hover);
+        }
+        .btn-admin-warning {
+            background-color: var(--admin-warning);
+            color: #0f172a;
+        }
+        .btn-admin-danger {
+            background-color: var(--admin-danger);
+            color: #ffffff;
+        }
+        .btn-admin-secondary {
+            background-color: #334155;
+            color: #f8fafc;
+        }
+        .btn-admin-secondary:hover {
+            background-color: #475569;
+        }
+
+        /* Pagination */
+        .pagination-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1.25rem;
+            color: var(--admin-text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Simple Visual Chart Component */
+        .chart-container {
+            width: 100%;
+            height: 220px;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.5rem;
+            padding-top: 2rem;
+            border-bottom: 1px solid var(--admin-border);
+        }
+
+        .chart-bar-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            height: 100%;
+            justify-content: flex-end;
+        }
+
+        .chart-bar {
+            width: 100%;
+            max-width: 32px;
+            background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+            border-radius: 4px 4px 0 0;
+            transition: height 0.4s ease;
+            position: relative;
+        }
+        .chart-bar:hover::after {
+            content: attr(data-value);
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #0f172a;
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .chart-label {
+            font-size: 0.7rem;
+            color: var(--admin-text-muted);
+            text-align: center;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background-color: var(--admin-card);
+            border: 1px solid var(--admin-border);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 540px;
+            padding: 1.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        /* Responsive Mobile Toggle */
+        .mobile-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--admin-text-main);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .admin-sidebar {
+                transform: translateX(-100%);
+            }
+            .admin-sidebar.open {
+                transform: translateX(0);
+            }
+            .admin-main {
+                margin-left: 0;
+            }
+            .mobile-toggle {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body class="admin-body">
+
+    <!-- Admin Sidebar -->
+    <aside class="admin-sidebar" id="adminSidebar">
+        <div class="admin-brand">
+            <div class="admin-brand-icon">CA</div>
+            <div class="admin-brand-title">Connect<span>Abroad</span> <span style="font-size: 0.7rem; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 2px 6px; border-radius: 4px; vertical-align: middle;">ADMIN</span></div>
+        </div>
+
+        <nav class="admin-nav">
+            <div class="admin-nav-item active" onclick="switchAdminTab('overview')" id="tab-overview">
+                <span>📊</span> Dashboard Overview
+            </div>
+            <div class="admin-nav-item" onclick="switchAdminTab('users')" id="tab-users">
+                <span>👥</span> User Management
+            </div>
+            <div class="admin-nav-item" onclick="switchAdminTab('posts')" id="tab-posts">
+                <span>📝</span> Post Management
+            </div>
+            <div class="admin-nav-item" onclick="switchAdminTab('jobs')" id="tab-jobs">
+                <span>💼</span> Job Management
+            </div>
+            <div class="admin-nav-item" onclick="switchAdminTab('communities')" id="tab-communities">
+                <span>🌐</span> Community Management
+            </div>
+            <div class="admin-nav-item" onclick="switchAdminTab('reports')" id="tab-reports">
+                <span>🚨</span> Reporting System
+            </div>
+            <div class="admin-nav-item" onclick="switchAdminTab('analytics')" id="tab-analytics">
+                <span>📈</span> Platform Analytics
+            </div>
+            <div class="admin-nav-item" onclick="switchAdminTab('audit')" id="tab-audit">
+                <span>📜</span> Admin Audit Logs
+            </div>
+        </nav>
+
+        <div class="admin-sidebar-footer">
+            <div class="admin-profile-info">
+                <div class="admin-avatar" id="adminAvatar">AD</div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 0.85rem; font-weight: 600;" id="adminName">Admin User</span>
+                    <span style="font-size: 0.7rem; color: var(--admin-text-muted);">Administrator</span>
+                </div>
+            </div>
+            <button class="btn-admin btn-admin-secondary" onclick="adminLogout()" title="Logout" style="padding: 0.4rem 0.6rem;">
+                🚪
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="admin-main">
+        <header class="admin-header">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+                <div class="admin-header-title">
+                    <h1 id="pageHeading">Dashboard Overview</h1>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="/dashboard.html" class="btn-admin btn-admin-secondary" style="text-decoration: none;">
+                    🌐 User Application
+                </a>
+                <span class="status-pill status-active">System Online</span>
+            </div>
+        </header>
+
+        <div class="admin-content">
+            
+            <!-- SECTION 1: DASHBOARD OVERVIEW -->
+            <section id="sec-overview">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span>Total Users</span>
+                            <span class="stat-icon">👥</span>
+                        </div>
+                        <div class="stat-value" id="statTotalUsers">0</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span>Active Users</span>
+                            <span class="stat-icon">⚡</span>
+                        </div>
+                        <div class="stat-value" id="statActiveUsers" style="color: #34d399;">0</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span>Connections</span>
+                            <span class="stat-icon">🤝</span>
+                        </div>
+                        <div class="stat-value" id="statTotalConnections">0</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span>Posts Created</span>
+                            <span class="stat-icon">📝</span>
+                        </div>
+                        <div class="stat-value" id="statTotalPosts">0</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span>Jobs Posted</span>
+                            <span class="stat-icon">💼</span>
+                        </div>
+                        <div class="stat-value" id="statTotalJobs">0</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span>Communities</span>
+                            <span class="stat-icon">🌐</span>
+                        </div>
+                        <div class="stat-value" id="statTotalCommunities">0</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span>Pending Reports</span>
+                            <span class="stat-icon">🚨</span>
+                        </div>
+                        <div class="stat-value" id="statPendingReports" style="color: #f87171;">0</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+                    <!-- User Growth Chart Card -->
+                    <div class="admin-panel-card">
+                        <div class="card-header-flex">
+                            <h2 class="card-title">User Growth (Last 30 Days)</h2>
+                            <select class="admin-select" id="overviewGrowthTimeframe" onchange="loadOverviewAnalytics()">
+                                <option value="7">Last 7 Days</option>
+                                <option value="30" selected>Last 30 Days</option>
+                                <option value="90">Last 90 Days</option>
+                            </select>
+                        </div>
+                        <div class="chart-container" id="overviewGrowthChart">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Recent Platform Activity Card -->
+                    <div class="admin-panel-card">
+                        <div class="card-header-flex">
+                            <h2 class="card-title">Recent Activity Feed</h2>
+                        </div>
+                        <div id="recentActivityList" style="display: flex; flex-direction: column; gap: 0.85rem; max-height: 260px; overflow-y: auto;">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 2: USER MANAGEMENT -->
+            <section id="sec-users" style="display: none;">
+                <div class="admin-panel-card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Platform Users</h2>
+                        <div class="admin-filter-bar" style="margin-bottom: 0;">
+                            <input type="text" class="admin-input" id="userSearchInput" placeholder="Search by name or email..." oninput="debounceUserSearch()">
+                            <select class="admin-select" id="userRoleFilter" onchange="loadAdminUsers(0)">
+                                <option value="">All Roles</option>
+                                <option value="USER">User</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                            <select class="admin-select" id="userStatusFilter" onchange="loadAdminUsers(0)">
+                                <option value="">All Statuses</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="SUSPENDED">Suspended</option>
+                                <option value="BANNED">Banned</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Joined Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container" id="usersPagination">
+                        <!-- Pagination controls -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 3: POST MANAGEMENT -->
+            <section id="sec-posts" style="display: none;">
+                <div class="admin-panel-card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Platform Posts</h2>
+                        <div class="admin-filter-bar" style="margin-bottom: 0;">
+                            <input type="text" class="admin-input" id="postSearchInput" placeholder="Search content or author..." oninput="debouncePostSearch()">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Author</th>
+                                    <th>Content Preview</th>
+                                    <th>Type</th>
+                                    <th>Created Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="postsTableBody">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container" id="postsPagination">
+                        <!-- Pagination controls -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 4: JOB MANAGEMENT -->
+            <section id="sec-jobs" style="display: none;">
+                <div class="admin-panel-card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Job Postings</h2>
+                        <div class="admin-filter-bar" style="margin-bottom: 0;">
+                            <input type="text" class="admin-input" id="jobSearchInput" placeholder="Search title, company, location..." oninput="debounceJobSearch()">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Job Title</th>
+                                    <th>Company</th>
+                                    <th>Location</th>
+                                    <th>Posted By</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="jobsTableBody">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container" id="jobsPagination">
+                        <!-- Pagination controls -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 5: COMMUNITY MANAGEMENT -->
+            <section id="sec-communities" style="display: none;">
+                <div class="admin-panel-card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Communities</h2>
+                        <div class="admin-filter-bar" style="margin-bottom: 0;">
+                            <input type="text" class="admin-input" id="communitySearchInput" placeholder="Search name, category, location..." oninput="debounceCommunitySearch()">
+                            <select class="admin-select" id="communityStatusFilter" onchange="loadAdminCommunities(0)">
+                                <option value="">All Statuses</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="DISABLED">Disabled</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Community Name</th>
+                                    <th>Category</th>
+                                    <th>Location</th>
+                                    <th>Creator</th>
+                                    <th>Members</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="communitiesTableBody">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container" id="communitiesPagination">
+                        <!-- Pagination controls -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 6: REPORTING SYSTEM -->
+            <section id="sec-reports" style="display: none;">
+                <div class="admin-panel-card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">User Reports</h2>
+                        <div class="admin-filter-bar" style="margin-bottom: 0;">
+                            <select class="admin-select" id="reportStatusFilter" onchange="loadAdminReports(0)">
+                                <option value="">All Statuses</option>
+                                <option value="PENDING" selected>Pending</option>
+                                <option value="REVIEWING">Reviewing</option>
+                                <option value="RESOLVED">Resolved</option>
+                                <option value="DISMISSED">Dismissed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Reporter</th>
+                                    <th>Target</th>
+                                    <th>Reason</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                    <th>Reported At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportsTableBody">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container" id="reportsPagination">
+                        <!-- Pagination controls -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 7: PLATFORM ANALYTICS -->
+            <section id="sec-analytics" style="display: none;">
+                <div class="admin-panel-card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Platform Engagement & Growth</h2>
+                        <select class="admin-select" id="analyticsDaysFilter" onchange="loadFullAnalytics()">
+                            <option value="7">7 Days</option>
+                            <option value="30" selected>30 Days</option>
+                            <option value="90">90 Days</option>
+                        </select>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-header"><span>Avg Posts / User</span></div>
+                            <div class="stat-value" id="analyticsAvgPosts">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-header"><span>Avg Connections / User</span></div>
+                            <div class="stat-value" id="analyticsAvgConn">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-header"><span>Total Post Likes</span></div>
+                            <div class="stat-value" id="analyticsTotalLikes">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-header"><span>Total Comments</span></div>
+                            <div class="stat-value" id="analyticsTotalComments">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-header"><span>Total Messages Sent</span></div>
+                            <div class="stat-value" id="analyticsTotalMessages">0</div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                        <div class="admin-panel-card">
+                            <h3 class="card-title" style="margin-bottom: 1rem;">Posts Created / Day</h3>
+                            <div class="chart-container" id="analyticsPostsChart"></div>
+                        </div>
+
+                        <div class="admin-panel-card">
+                            <h3 class="card-title" style="margin-bottom: 1rem;">Jobs Posted / Day</h3>
+                            <div class="chart-container" id="analyticsJobsChart"></div>
+                        </div>
+
+                        <div class="admin-panel-card">
+                            <h3 class="card-title" style="margin-bottom: 1rem;">Connections Created / Day</h3>
+                            <div class="chart-container" id="analyticsConnChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 8: ADMIN AUDIT LOGS -->
+            <section id="sec-audit" style="display: none;">
+                <div class="admin-panel-card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Administrative Audit Logs</h2>
+                        <div class="admin-filter-bar" style="margin-bottom: 0;">
+                            <input type="text" class="admin-input" id="auditSearchInput" placeholder="Search action, admin, description..." oninput="debounceAuditSearch()">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Admin</th>
+                                    <th>Action</th>
+                                    <th>Target</th>
+                                    <th>Description</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="auditTableBody">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination-container" id="auditPagination">
+                        <!-- Pagination controls -->
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Modal Dialog Component -->
+    <div class="modal-overlay" id="adminModalOverlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Modal Title</h3>
+                <button onclick="closeAdminModal()" style="background:none; border:none; color: var(--admin-text-muted); font-size: 1.2rem; cursor:pointer;">✕</button>
+            </div>
+            <div id="modalBody">
+                <!-- Dynamic Content -->
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;" id="modalFooter">
+                <!-- Action Buttons -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin JavaScript Script -->
+    <script>
+        let currentAdminUser = null;
+        let activeTab = 'overview';
+        let currentPage = { users: 0, posts: 0, jobs: 0, communities: 0, reports: 0, audit: 0 };
+        let searchTimeouts = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('jwtToken');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/users/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                currentAdminUser = await res.json();
+                const roleStr = currentAdminUser.role ? (typeof currentAdminUser.role === 'string' ? currentAdminUser.role : currentAdminUser.role.name) : 'USER';
+                if (roleStr !== 'ADMIN' && roleStr !== 'ROLE_ADMIN') {
+                    alert('Access Denied: You do not have administrator permissions.');
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+
+                // Render admin details
+                document.getElementById('adminName').innerText = currentAdminUser.name;
+                const initials = currentAdminUser.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+                document.getElementById('adminAvatar').innerText = initials;
+
+                // Load initial dashboard stats
+                loadDashboardStats();
+                loadOverviewAnalytics();
+                loadRecentActivity();
+
+            } catch (err) {
+                console.error("Authentication check failed:", err);
+                window.location.href = '/login.html';
+            }
+        });
+
+        function switchAdminTab(tabName) {
+            activeTab = tabName;
+            document.querySelectorAll('.admin-nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            const sectionMap = {
+                overview: 'sec-overview',
+                users: 'sec-users',
+                posts: 'sec-posts',
+                jobs: 'sec-jobs',
+                communities: 'sec-communities',
+                reports: 'sec-reports',
+                analytics: 'sec-analytics',
+                audit: 'sec-audit'
+            };
+
+            const titleMap = {
+                overview: 'Dashboard Overview',
+                users: 'User Management',
+                posts: 'Post Management',
+                jobs: 'Job Management',
+                communities: 'Community Management',
+                reports: 'Report Review System',
+                analytics: 'Platform Analytics',
+                audit: 'Admin Audit Logs'
+            };
+
+            Object.values(sectionMap).forEach(secId => {
+                document.getElementById(secId).style.display = 'none';
+            });
+
+            document.getElementById(sectionMap[tabName]).style.display = 'block';
+            document.getElementById('pageHeading').innerText = titleMap[tabName];
+
+            // Trigger fetch for tab data
+            if (tabName === 'users') loadAdminUsers(0);
+            if (tabName === 'posts') loadAdminPosts(0);
+            if (tabName === 'jobs') loadAdminJobs(0);
+            if (tabName === 'communities') loadAdminCommunities(0);
+            if (tabName === 'reports') loadAdminReports(0);
+            if (tabName === 'analytics') loadFullAnalytics();
+            if (tabName === 'audit') loadAdminAuditLogs(0);
+        }
+
+        async function fetchAdminApi(url, options = {}) {
+            const token = localStorage.getItem('jwtToken');
+            const headers = options.headers || {};
+            headers['Authorization'] = `Bearer ${token}`;
+            if (!headers['Content-Type'] && options.body) {
+                headers['Content-Type'] = 'application/json';
+            }
+
+            const res = await fetch(url, { ...options, headers });
+            if (res.status === 403) {
+                alert('403 Forbidden: You do not have permission to perform this action.');
+                throw new Error('Forbidden');
+            }
+            return res;
+        }
+
+        // LOAD OVERVIEW STATS
+        async function loadDashboardStats() {
+            try {
+                const res = await fetchAdminApi('/api/admin/dashboard/stats');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('statTotalUsers').innerText = data.totalUsers.toLocaleString();
+                    document.getElementById('statActiveUsers').innerText = data.activeUsers.toLocaleString();
+                    document.getElementById('statTotalConnections').innerText = data.totalConnections.toLocaleString();
+                    document.getElementById('statTotalPosts').innerText = data.totalPosts.toLocaleString();
+                    document.getElementById('statTotalJobs').innerText = data.totalJobs.toLocaleString();
+                    document.getElementById('statTotalCommunities').innerText = data.totalCommunities.toLocaleString();
+                    document.getElementById('statPendingReports').innerText = data.pendingReports.toLocaleString();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadOverviewAnalytics() {
+            try {
+                const days = document.getElementById('overviewGrowthTimeframe').value || 30;
+                const res = await fetchAdminApi(`/api/admin/analytics?days=${days}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderChart('overviewGrowthChart', data.userGrowth);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadRecentActivity() {
+            try {
+                const res = await fetchAdminApi('/api/admin/dashboard/recent-activity');
+                if (res.ok) {
+                    const activities = await res.json();
+                    const container = document.getElementById('recentActivityList');
+                    if (activities.length === 0) {
+                        container.innerHTML = '<div style="color: var(--admin-text-muted); font-size: 0.85rem;">No recent activity.</div>';
+                        return;
+                    }
+                    container.innerHTML = activities.map(act => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem; background: rgba(0,0,0,0.2); border-radius: 6px;">
+                            <span style="font-size: 0.85rem; font-weight: 500;">${act.description}</span>
+                            <span style="font-size: 0.75rem; color: var(--admin-text-muted);">${formatRelativeTime(act.timestamp)}</span>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // LOAD USERS
+        async function loadAdminUsers(page = 0) {
+            currentPage.users = page;
+            const keyword = document.getElementById('userSearchInput').value;
+            const role = document.getElementById('userRoleFilter').value;
+            const status = document.getElementById('userStatusFilter').value;
+
+            try {
+                const res = await fetchAdminApi(`/api/admin/users?page=${page}&size=10&keyword=${encodeURIComponent(keyword)}&role=${role}&status=${status}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const tbody = document.getElementById('usersTableBody');
+                    if (data.content.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--admin-text-muted);">No users found.</td></tr>';
+                        document.getElementById('usersPagination').innerHTML = '';
+                        return;
+                    }
+
+                    tbody.innerHTML = data.content.map(u => `
+                        <tr>
+                            <td style="font-weight: 600;">${u.name}</td>
+                            <td>${u.email}</td>
+                            <td><span style="font-size:0.75rem; font-weight:700;">${u.role}</span></td>
+                            <td>${u.userType}</td>
+                            <td><span class="status-pill status-${(u.status || 'ACTIVE').toLowerCase()}">${u.status || 'ACTIVE'}</span></td>
+                            <td>${formatDate(u.createdAt)}</td>
+                            <td>
+                                <div style="display: flex; gap: 0.4rem;">
+                                    <button class="btn-admin btn-admin-secondary" onclick="viewUserDetails(${u.id})">Info</button>
+                                    ${u.status === 'SUSPENDED' || u.status === 'BANNED' 
+                                        ? `<button class="btn-admin btn-admin-primary" onclick="confirmUserStatus(${u.id}, 'ACTIVE')">Restore</button>` 
+                                        : `<button class="btn-admin btn-admin-warning" onclick="confirmUserStatus(${u.id}, 'SUSPENDED')">Suspend</button>`}
+                                    ${u.role !== 'ADMIN' ? `<button class="btn-admin btn-admin-secondary" onclick="confirmUserRole(${u.id}, 'ADMIN')">Promote</button>` : ''}
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+
+                    renderPagination('usersPagination', data, (p) => loadAdminUsers(p));
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function debounceUserSearch() {
+            clearTimeout(searchTimeouts.users);
+            searchTimeouts.users = setTimeout(() => loadAdminUsers(0), 300);
+        }
+
+        async function viewUserDetails(userId) {
+            try {
+                const res = await fetchAdminApi(`/api/admin/users/${userId}`);
+                if (res.ok) {
+                    const u = await res.json();
+                    showAdminModal('User Administrative Details', `
+                        <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.9rem;">
+                            <div><strong>Name:</strong> ${u.name}</div>
+                            <div><strong>Email:</strong> ${u.email}</div>
+                            <div><strong>Role:</strong> ${u.role}</div>
+                            <div><strong>Status:</strong> ${u.status}</div>
+                            <div><strong>User Type:</strong> ${u.userType}</div>
+                            <div><strong>Profile Completion:</strong> ${u.profileCompletionPercentage}%</div>
+                            <div><strong>College:</strong> ${u.collegeName || 'N/A'} (${u.degree || 'N/A'})</div>
+                            <div><strong>Current Location:</strong> ${u.currentCity || ''} ${u.currentCountry || 'N/A'}</div>
+                            <div><strong>Target Location:</strong> ${u.targetCity || ''} ${u.targetCountry || 'N/A'}</div>
+                            <div><strong>Profession:</strong> ${u.profession || 'N/A'}</div>
+                            <div><strong>Bio:</strong> ${u.bio || 'None'}</div>
+                            <div><strong>Created Date:</strong> ${formatDate(u.createdAt)}</div>
+                        </div>
+                    `, `<button class="btn-admin btn-admin-secondary" onclick="closeAdminModal()">Close</button>`);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function confirmUserStatus(userId, newStatus) {
+            showAdminModal(`Confirm Status Change`, `
+                <p>Are you sure you want to change this user account status to <strong>${newStatus}</strong>?</p>
+            `, `
+                <button class="btn-admin btn-admin-secondary" onclick="closeAdminModal()">Cancel</button>
+                <button class="btn-admin btn-admin-primary" onclick="executeUserStatusUpdate(${userId}, '${newStatus}')">Confirm</button>
+            `);
+        }
+
+        async function executeUserStatusUpdate(userId, status) {
+            try {
+                const res = await fetchAdminApi(`/api/admin/users/${userId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status })
+                });
+                if (res.ok) {
+                    closeAdminModal();
+                    loadAdminUsers(currentPage.users);
+                    loadDashboardStats();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function confirmUserRole(userId, newRole) {
+            showAdminModal(`Confirm Privilege Promotion`, `
+                <p>Are you sure you want to grant <strong>${newRole}</strong> privileges to this user?</p>
+            `, `
+                <button class="btn-admin btn-admin-secondary" onclick="closeAdminModal()">Cancel</button>
+                <button class="btn-admin btn-admin-primary" onclick="executeUserRoleUpdate(${userId}, '${newRole}')">Confirm Promote</button>
+            `);
+        }
+
+        async function executeUserRoleUpdate(userId, role) {
+            try {
+                const res = await fetchAdminApi(`/api/admin/users/${userId}/role`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ role })
+                });
+                if (res.ok) {
+                    closeAdminModal();
+                    loadAdminUsers(currentPage.users);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // LOAD POSTS
+        async function loadAdminPosts(page = 0) {
+            currentPage.posts = page;
+            const keyword = document.getElementById('postSearchInput').value;
+            try {
+                const res = await fetchAdminApi(`/api/admin/posts?page=${page}&size=10&keyword=${encodeURIComponent(keyword)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const tbody = document.getElementById('postsTableBody');
+                    if (data.content.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--admin-text-muted);">No posts found.</td></tr>';
+                        document.getElementById('postsPagination').innerHTML = '';
+                        return;
+                    }
+                    tbody.innerHTML = data.content.map(p => `
+                        <tr>
+                            <td>#${p.id}</td>
+                            <td style="font-weight:600;">${p.author ? p.author.name : 'Unknown'}</td>
+                            <td style="max-width: 320px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${p.content}</td>
+                            <td>${p.postType}</td>
+                            <td>${formatDate(p.createdAt)}</td>
+                            <td>
+                                <button class="btn-admin btn-admin-danger" onclick="confirmDeletePost(${p.id})">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                    renderPagination('postsPagination', data, (p) => loadAdminPosts(p));
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function debouncePostSearch() {
+            clearTimeout(searchTimeouts.posts);
+            searchTimeouts.posts = setTimeout(() => loadAdminPosts(0), 300);
+        }
+
+        function confirmDeletePost(postId) {
+            showAdminModal('Delete Post', `<p>Are you sure you want to delete post #${postId}? Action cannot be undone.</p>`, `
+                <button class="btn-admin btn-admin-secondary" onclick="closeAdminModal()">Cancel</button>
+                <button class="btn-admin btn-admin-danger" onclick="executeDeletePost(${postId})">Delete Post</button>
+            `);
+        }
+
+        async function executeDeletePost(postId) {
+            try {
+                const res = await fetchAdminApi(`/api/admin/posts/${postId}`, { method: 'DELETE' });
+                if (res.ok || res.status === 204) {
+                    closeAdminModal();
+                    loadAdminPosts(currentPage.posts);
+                    loadDashboardStats();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // LOAD JOBS
+        async function loadAdminJobs(page = 0) {
+            currentPage.jobs = page;
+            const keyword = document.getElementById('jobSearchInput').value;
+            try {
+                const res = await fetchAdminApi(`/api/admin/jobs?page=${page}&size=10&keyword=${encodeURIComponent(keyword)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const tbody = document.getElementById('jobsTableBody');
+                    if (data.content.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--admin-text-muted);">No jobs found.</td></tr>';
+                        document.getElementById('jobsPagination').innerHTML = '';
+                        return;
+                    }
+                    tbody.innerHTML = data.content.map(j => `
+                        <tr>
+                            <td style="font-weight: 600;">${j.title}</td>
+                            <td>${j.companyName}</td>
+                            <td>${j.city}, ${j.country}</td>
+                            <td>${j.postedByName || 'User'}</td>
+                            <td>${j.employmentType}</td>
+                            <td><span class="status-pill status-${(j.status || 'ACTIVE').toLowerCase()}">${j.status || 'ACTIVE'}</span></td>
+                            <td>
+                                <div style="display:flex; gap:0.4rem;">
+                                    ${j.status === 'ACTIVE' 
+                                        ? `<button class="btn-admin btn-admin-warning" onclick="updateJobStatus(${j.id}, 'CLOSED')">Disable</button>`
+                                        : `<button class="btn-admin btn-admin-primary" onclick="updateJobStatus(${j.id}, 'ACTIVE')">Enable</button>`}
+                                    <button class="btn-admin btn-admin-danger" onclick="executeDeleteJob(${j.id})">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                    renderPagination('jobsPagination', data, (p) => loadAdminJobs(p));
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function debounceJobSearch() {
+            clearTimeout(searchTimeouts.jobs);
+            searchTimeouts.jobs = setTimeout(() => loadAdminJobs(0), 300);
+        }
+
+        async function updateJobStatus(jobId, status) {
+            try {
+                const res = await fetchAdminApi(`/api/admin/jobs/${jobId}/status?status=${status}`, { method: 'PUT' });
+                if (res.ok) {
+                    loadAdminJobs(currentPage.jobs);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function executeDeleteJob(jobId) {
+            if (!confirm('Are you sure you want to delete this job listing?')) return;
+            try {
+                const res = await fetchAdminApi(`/api/admin/jobs/${jobId}`, { method: 'DELETE' });
+                if (res.ok || res.status === 204) {
+                    loadAdminJobs(currentPage.jobs);
+                    loadDashboardStats();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // LOAD COMMUNITIES
+        async function loadAdminCommunities(page = 0) {
+            currentPage.communities = page;
+            const keyword = document.getElementById('communitySearchInput').value;
+            const status = document.getElementById('communityStatusFilter').value;
+            try {
+                const res = await fetchAdminApi(`/api/admin/communities?page=${page}&size=10&keyword=${encodeURIComponent(keyword)}&status=${status}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const tbody = document.getElementById('communitiesTableBody');
+                    if (data.content.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--admin-text-muted);">No communities found.</td></tr>';
+                        document.getElementById('communitiesPagination').innerHTML = '';
+                        return;
+                    }
+                    tbody.innerHTML = data.content.map(c => `
+                        <tr>
+                            <td style="font-weight: 600;">${c.name}</td>
+                            <td>${c.category}</td>
+                            <td>${c.location || 'Global'}</td>
+                            <td>${c.creatorName || 'Admin'}</td>
+                            <td>${c.memberCount}</td>
+                            <td><span class="status-pill status-${(c.status || 'ACTIVE').toLowerCase()}">${c.status || 'ACTIVE'}</span></td>
+                            <td>
+                                <div style="display:flex; gap:0.4rem;">
+                                    ${c.status === 'ACTIVE' 
+                                        ? `<button class="btn-admin btn-admin-warning" onclick="updateCommunityStatus(${c.id}, 'DISABLED')">Disable</button>`
+                                        : `<button class="btn-admin btn-admin-primary" onclick="updateCommunityStatus(${c.id}, 'ACTIVE')">Enable</button>`}
+                                    <button class="btn-admin btn-admin-danger" onclick="executeDeleteCommunity(${c.id})">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                    renderPagination('communitiesPagination', data, (p) => loadAdminCommunities(p));
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function debounceCommunitySearch() {
+            clearTimeout(searchTimeouts.communities);
+            searchTimeouts.communities = setTimeout(() => loadAdminCommunities(0), 300);
+        }
+
+        async function updateCommunityStatus(communityId, status) {
+            try {
+                const res = await fetchAdminApi(`/api/admin/communities/${communityId}/status?status=${status}`, { method: 'PUT' });
+                if (res.ok) {
+                    loadAdminCommunities(currentPage.communities);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function executeDeleteCommunity(communityId) {
+            if (!confirm('Are you sure you want to delete this community?')) return;
+            try {
+                const res = await fetchAdminApi(`/api/admin/communities/${communityId}`, { method: 'DELETE' });
+                if (res.ok || res.status === 204) {
+                    loadAdminCommunities(currentPage.communities);
+                    loadDashboardStats();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // LOAD REPORTS
+        async function loadAdminReports(page = 0) {
+            currentPage.reports = page;
+            const status = document.getElementById('reportStatusFilter').value;
+            try {
+                const res = await fetchAdminApi(`/api/admin/reports?page=${page}&size=10&status=${status}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const tbody = document.getElementById('reportsTableBody');
+                    if (data.content.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--admin-text-muted);">No reports found.</td></tr>';
+                        document.getElementById('reportsPagination').innerHTML = '';
+                        return;
+                    }
+                    tbody.innerHTML = data.content.map(r => `
+                        <tr>
+                            <td>#${r.id}</td>
+                            <td>${r.reporterName}</td>
+                            <td><strong>${r.targetType}</strong> #${r.targetId}</td>
+                            <td><span style="color:#f87171; font-weight:600;">${r.reason}</span></td>
+                            <td>${r.description || 'No description'}</td>
+                            <td><span class="status-pill status-${r.status.toLowerCase()}">${r.status}</span></td>
+                            <td>${formatDate(r.createdAt)}</td>
+                            <td>
+                                <div style="display:flex; gap:0.4rem;">
+                                    ${r.status === 'PENDING' ? `<button class="btn-admin btn-admin-primary" onclick="updateReportStatus(${r.id}, 'REVIEWING')">Review</button>` : ''}
+                                    ${r.status !== 'RESOLVED' ? `<button class="btn-admin btn-admin-primary" onclick="updateReportStatus(${r.id}, 'RESOLVED')">Resolve</button>` : ''}
+                                    ${r.status !== 'DISMISSED' ? `<button class="btn-admin btn-admin-secondary" onclick="updateReportStatus(${r.id}, 'DISMISSED')">Dismiss</button>` : ''}
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                    renderPagination('reportsPagination', data, (p) => loadAdminReports(p));
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function updateReportStatus(reportId, status) {
+            try {
+                const res = await fetchAdminApi(`/api/admin/reports/${reportId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status })
+                });
+                if (res.ok) {
+                    loadAdminReports(currentPage.reports);
+                    loadDashboardStats();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // LOAD FULL ANALYTICS
+        async function loadFullAnalytics() {
+            const days = document.getElementById('analyticsDaysFilter').value || 30;
+            try {
+                const res = await fetchAdminApi(`/api/admin/analytics?days=${days}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('analyticsAvgPosts').innerText = data.avgPostsPerActiveUser;
+                    document.getElementById('analyticsAvgConn').innerText = data.avgConnectionsPerUser;
+                    document.getElementById('analyticsTotalLikes').innerText = data.totalLikes.toLocaleString();
+                    document.getElementById('analyticsTotalComments').innerText = data.totalComments.toLocaleString();
+                    document.getElementById('analyticsTotalMessages').innerText = data.totalMessages.toLocaleString();
+
+                    renderChart('analyticsPostsChart', data.postsPerDay);
+                    renderChart('analyticsJobsChart', data.jobsPerDay);
+                    renderChart('analyticsConnChart', data.connectionsPerDay);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // LOAD AUDIT LOGS
+        async function loadAdminAuditLogs(page = 0) {
+            currentPage.audit = page;
+            const keyword = document.getElementById('auditSearchInput').value;
+            try {
+                const res = await fetchAdminApi(`/api/admin/audit-logs?page=${page}&size=10&keyword=${encodeURIComponent(keyword)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const tbody = document.getElementById('auditTableBody');
+                    if (data.content.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--admin-text-muted);">No audit logs found.</td></tr>';
+                        document.getElementById('auditPagination').innerHTML = '';
+                        return;
+                    }
+                    tbody.innerHTML = data.content.map(a => `
+                        <tr>
+                            <td>#${a.id}</td>
+                            <td style="font-weight:600;">${a.adminName}</td>
+                            <td><span style="color:#60a5fa; font-weight:700;">${a.action}</span></td>
+                            <td>${a.targetType} #${a.targetId || ''}</td>
+                            <td>${a.description}</td>
+                            <td>${formatDate(a.createdAt)}</td>
+                        </tr>
+                    `).join('');
+                    renderPagination('auditPagination', data, (p) => loadAdminAuditLogs(p));
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function debounceAuditSearch() {
+            clearTimeout(searchTimeouts.audit);
+            searchTimeouts.audit = setTimeout(() => loadAdminAuditLogs(0), 300);
+        }
+
+        // HELPER FUNCTIONS
+        function renderChart(containerId, timeSeries) {
+            const container = document.getElementById(containerId);
+            if (!timeSeries || timeSeries.length === 0) {
+                container.innerHTML = '<div style="margin: auto; color: var(--admin-text-muted);">No chart data available</div>';
+                return;
+            }
+            const maxVal = Math.max(...timeSeries.map(d => d.value), 1);
+            container.innerHTML = timeSeries.map(d => {
+                const pct = Math.max(Math.round((d.value / maxVal) * 100), 4);
+                return `
+                    <div class="chart-bar-col">
+                        <div class="chart-bar" style="height: ${pct}%;" data-value="${d.value}"></div>
+                        <span class="chart-label">${d.date}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderPagination(containerId, pageData, onPageChange) {
+            const container = document.getElementById(containerId);
+            if (pageData.totalPages <= 1) {
+                container.innerHTML = `<span>Page 1 of 1 (Total ${pageData.totalElements})</span>`;
+                return;
+            }
+            container.innerHTML = `
+                <span>Showing page ${pageData.pageNumber + 1} of ${pageData.totalPages} (${pageData.totalElements} records)</span>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn-admin btn-admin-secondary" ${pageData.first ? 'disabled style="opacity:0.5;"' : ''} onclick="${containerId}PagePrev()">Prev</button>
+                    <button class="btn-admin btn-admin-secondary" ${pageData.last ? 'disabled style="opacity:0.5;"' : ''} onclick="${containerId}PageNext()">Next</button>
+                </div>
+            `;
+            window[`${containerId}PagePrev`] = () => onPageChange(pageData.pageNumber - 1);
+            window[`${containerId}PageNext`] = () => onPageChange(pageData.pageNumber + 1);
+        }
+
+        function showAdminModal(title, bodyHtml, footerHtml) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalBody').innerHTML = bodyHtml;
+            document.getElementById('modalFooter').innerHTML = footerHtml;
+            document.getElementById('adminModalOverlay').classList.add('active');
+        }
+
+        function closeAdminModal() {
+            document.getElementById('adminModalOverlay').classList.remove('active');
+        }
+
+        function adminLogout() {
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/login.html';
+        }
+
+        function toggleSidebar() {
+            document.getElementById('adminSidebar').classList.toggle('open');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function formatRelativeTime(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now - d;
+            const diffMins = Math.floor(diffMs / 60000);
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins} minutes ago`;
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) return `${diffHours} hours ago`;
+            return `${Math.floor(diffHours / 24)} days ago`;
+        }
+    </script>
+</body>
+</html>

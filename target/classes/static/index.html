@@ -8,7 +8,22 @@
     <script>
         const token = localStorage.getItem('jwtToken');
         if (token) {
-            window.location.href = '/dashboard.html';
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    const userRole = user.role ? (typeof user.role === 'string' ? user.role : user.role.name) : 'USER';
+                    if (userRole === 'ADMIN' || userRole === 'ROLE_ADMIN') {
+                        window.location.href = '/admin.html';
+                    } else {
+                        window.location.href = '/dashboard.html';
+                    }
+                } catch(e) {
+                    window.location.href = '/dashboard.html';
+                }
+            } else {
+                window.location.href = '/dashboard.html';
+            }
         } else {
             window.location.href = '/login.html';
         }

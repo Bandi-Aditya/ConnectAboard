@@ -7,7 +7,11 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+    @Index(name = "idx_user_created_at", columnList = "created_at DESC"),
+    @Index(name = "idx_user_status", columnList = "status"),
+    @Index(name = "idx_user_email", columnList = "email")
+})
 public class User {
 
     @Id
@@ -31,6 +35,10 @@ public class User {
     @Column(name = "user_type", nullable = false)
     private UserType userType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserStatus status = UserStatus.ACTIVE;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -51,6 +59,7 @@ public class User {
         this.password = password;
         this.role = role;
         this.userType = userType;
+        this.status = UserStatus.ACTIVE;
         this.enabled = true;
     }
 
@@ -102,6 +111,15 @@ public class User {
         this.userType = userType;
     }
 
+    public UserStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(UserStatus status) {
+        this.status = status;
+        this.enabled = (status == UserStatus.ACTIVE);
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -119,10 +137,15 @@ public class User {
     }
 
     public boolean isEnabled() {
-        return enabled;
+        return status == UserStatus.ACTIVE && enabled;
     }
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+        if (!enabled && this.status == UserStatus.ACTIVE) {
+            this.status = UserStatus.SUSPENDED;
+        } else if (enabled && this.status != UserStatus.ACTIVE) {
+            this.status = UserStatus.ACTIVE;
+        }
     }
 }

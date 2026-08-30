@@ -246,7 +246,7 @@ public class PostService {
         commentRepository.delete(comment);
     }
 
-    private PostResponse mapToPostResponse(Post post, Long currentUserId) {
+    public PostResponse mapToPostResponse(Post post, Long currentUserId) {
         AuthorSummaryResponse authorSummary = buildAuthorSummary(post.getAuthor());
 
         long likeCount = postLikeRepository.countByPostId(post.getId());
